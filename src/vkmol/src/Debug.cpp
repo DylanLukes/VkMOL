@@ -6,9 +6,8 @@
 
 namespace vkmol {
 
-VkResult createDebugReportCallbackEXT(
-    VkInstance instance,
-    const VkDebugReportCallbackCreateInfoEXT *pCreateInfo,
+VKAPI_ATTR VkResult VKAPI_CALL createDebugReportCallbackEXT(
+    VkInstance instance, const VkDebugReportCallbackCreateInfoEXT *pCreateInfo,
     const VkAllocationCallbacks *pAllocator,
     VkDebugReportCallbackEXT *pCallback) {
   auto func = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(
@@ -20,9 +19,9 @@ VkResult createDebugReportCallbackEXT(
   }
 }
 
-void destroyDebugReportCallbackEXT(VkInstance instance,
-                                   VkDebugReportCallbackEXT callback,
-                                   const VkAllocationCallbacks *pAllocator) {
+VKAPI_ATTR void VKAPI_CALL destroyDebugReportCallbackEXT(
+    VkInstance instance, VkDebugReportCallbackEXT callback,
+    const VkAllocationCallbacks *pAllocator) {
   auto func = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(
       instance, "vkDestroyDebugReportCallbackEXT");
   if (func != nullptr) {
@@ -30,12 +29,12 @@ void destroyDebugReportCallbackEXT(VkInstance instance,
   }
 }
 
-static VKAPI_ATTR VkBool32 VKAPI_CALL
-debugCallback(VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objType,
-              uint64_t obj, size_t location, int32_t code,
-              const char *layerPrefix, const char *msg, void *userData) {
+VKAPI_ATTR VkBool32 VKAPI_CALL debugReportMessageEXT(
+    VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType,
+    uint64_t object, size_t location, int32_t messageCode,
+    const char *pLayerPrefix, const char *pMessage, void *pUserData) {
 
-  std::cerr << "validation layer: " << msg << std::endl;
+  std::cerr << "validation layer: " << pMessage << std::endl;
 
   return VK_FALSE;
 }

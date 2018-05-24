@@ -5,6 +5,13 @@
 #include "Debug.h"
 #include <vkmol/Engine.h>
 
+#define RETURN_ON_FAILURE(Result)                                              \
+  do {                                                                         \
+    if (Result != vk::Result::eSuccess) {                                      \
+      return Result;                                                           \
+    }                                                                          \
+  } while (0)
+
 namespace vkmol {
 
 Engine::Engine(const char *AppName, uint32_t AppVersion,
@@ -15,15 +22,16 @@ Engine::Engine(const char *AppName, uint32_t AppVersion,
       Extensions(std::move(Extensions)),
       ValidationLayers(std::move(ValidationLayers)),
       SurfaceFactory(std::move(SurfaceFactory)) {
+
   // Some extensions are mandatory for all VkMOL engine instances.
   Extensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 }
 
 Engine::~Engine() {
-  // TODO: destroy callback!
+  if (!ValidationLayers.empty()) {
+    destroyDebugReportCallbackEXT(*Instance, Callback, nullptr);
+  }
 }
-
-vk::Result Engine::setupDebugCallback() { return vk::Result::eSuccess; }
 
 vk::Result Engine::createInstance() {
   vk::ApplicationInfo AppInfo = {AppName, AppVersion, VKMOL_ENGINE_NAME,
@@ -42,7 +50,33 @@ vk::Result Engine::createInstance() {
   return Result;
 }
 
-vk::Result Engine::initialize() { return vk::Result::eSuccess; }
+vk::Result Engine::setupDebugCallback() {
+  if (ValidationLayers.empty()) {
+    return vk::Result::eSuccess;
+  }
+
+  vk::DebugReportCallbackCreateInfoEXT CreateInfo = {
+      vk::DebugReportFlagBitsEXT::eWarning | vk::DebugReportFlagBitsEXT::eError,
+      debugReportMessageEXT};
+
+  // Cast to C-style, due to converage holes in vulkan-hpp.
+  auto CInfo = VkDebugReportCallbackCreateInfoEXT(CreateInfo);
+
+  return vk::Result(
+      createDebugReportCallbackEXT(*Instance, &CInfo, nullptr, &Callback));
+}
+
+vk::Result Engine::initialize() {
+  vk::Result Result;
+
+  Result = createInstance();
+  RETURN_ON_FAILURE(Result);
+
+  Result = setupDebugCallback();
+  RETURN_ON_FAILURE(Result);
+
+  return vk::Result::eSuccess;
+}
 
 void Engine::draw() {}
 

@@ -33,8 +33,9 @@ private:
   // Engine State
   // ------------
 
+  VkDebugReportCallbackEXT Callback;
+
   vk::UniqueInstance Instance;
-  vk::DebugReportCallbackEXT Callback;
   vk::UniqueSurfaceKHR Surface;
 
   vk::PhysicalDevice PhysicalDevice = nullptr;

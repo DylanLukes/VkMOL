@@ -61,7 +61,9 @@ int main(int argc, char **argv) {
         return vkmol::SurfaceFactoryResult(vk::Result(Result), Surf);
       });
 
-  if (Engine.initialize() != vk::Result::eSuccess) {
+  auto Result = Engine.initialize();
+  if (Result != vk::Result::eSuccess) {
+    std::cerr << "Error: " << vk::to_string(Result) << "\n";
     throw std::runtime_error("Failed to initialize vkmol.");
   }
 
@@ -73,6 +75,7 @@ int main(int argc, char **argv) {
 
   // 5.0 – Wait for idle and explicitly clean up.
   Engine.cleanup();
+  glfwDestroyWindow(Window);
 }
 
 #pragma clang diagnostic pop
