@@ -93,8 +93,12 @@ private:
 
   // Setup Routines
   // --------------
-  vk::Result createInstance();
+  vk::Result setupInstance();
   vk::Result setupDebugCallback();
+  vk::Result setupPhysicalDevice();
+
+  // Setup Utilities
+  // ---------------
 
 public:
   Engine(const char *AppName, uint32_t AppVersion,

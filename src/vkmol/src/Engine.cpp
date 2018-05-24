@@ -5,6 +5,8 @@
 #include "Debug.h"
 #include <vkmol/Engine.h>
 
+#include <algorithm>
+
 #define RETURN_ON_FAILURE(Result)                                              \
   do {                                                                         \
     if (Result != vk::Result::eSuccess) {                                      \
@@ -33,7 +35,7 @@ Engine::~Engine() {
   }
 }
 
-vk::Result Engine::createInstance() {
+vk::Result Engine::setupInstance() {
   vk::ApplicationInfo AppInfo = {AppName, AppVersion, VKMOL_ENGINE_NAME,
                                  VK_MAKE_VERSION(1, 0, 0), VK_API_VERSION_1_0};
 
@@ -66,13 +68,39 @@ vk::Result Engine::setupDebugCallback() {
       createDebugReportCallbackEXT(*Instance, &CInfo, nullptr, &Callback));
 }
 
+vk::Result Engine::setupPhysicalDevice() {
+  auto [Result, PhysicalDevices] = Instance->enumeratePhysicalDevices();
+  RETURN_ON_FAILURE(Result);
+
+  if (PhysicalDevices.empty()) {
+    return vk::Result::eErrorInitializationFailed;
+  }
+
+  auto SuitablePhysicalDevice =
+      std::find_if(PhysicalDevices.begin(), PhysicalDevices.end(),
+                   [](vk::PhysicalDevice Device) -> bool {
+                     // TODO: check device capabilities.
+                     return true;
+                   });
+
+  if (SuitablePhysicalDevice == PhysicalDevices.end()) {
+    return vk::Result::eErrorInitializationFailed;
+  }
+
+  PhysicalDevice = *SuitablePhysicalDevice;
+  return vk::Result::eSuccess;
+}
+
 vk::Result Engine::initialize() {
   vk::Result Result;
 
-  Result = createInstance();
+  Result = setupInstance();
   RETURN_ON_FAILURE(Result);
 
   Result = setupDebugCallback();
+  RETURN_ON_FAILURE(Result);
+
+  Result = setupPhysicalDevice();
   RETURN_ON_FAILURE(Result);
 
   return vk::Result::eSuccess;
