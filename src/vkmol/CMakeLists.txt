@@ -1,7 +1,18 @@
 project(libvkmol VERSION 0.1)
 
+if (${FORCE_COLORED_OUTPUT})
+    if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+       add_compile_options (-fdiagnostics-color=always)
+    elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+       add_compile_options (-fcolor-diagnostics)
+    elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
+       add_compile_options (-fcolor-diagnostics)
+    endif ()
+endif ()
+
 add_library(vkmol
-    src/vkmol.cpp
+    src/Engine.cpp
+    src/InstanceFactory.cpp
 )
 
 target_include_directories(vkmol PUBLIC
@@ -10,10 +21,14 @@ target_include_directories(vkmol PUBLIC
     PRIVATE src)
 
 target_compile_features(vkmol
-    PUBLIC cxx_auto_type
-    PRIVATE cxx_variadic_templates)
+    PUBLIC cxx_std_17)
 
-target_link_libraries(vkmol PRIVATE
+add_definitions(-DVULKAN_HPP_NO_EXCEPTIONS)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
+
+target_link_libraries(vkmol
     Vulkan::Vulkan)
 
 install(TARGETS vkmol EXPORT VkMOLConfig
@@ -27,12 +42,12 @@ install(EXPORT VkMOLConfig DESTINATION share/VkMOL/cmake)
 
 export(TARGETS vkmol FILE VkMOLConfig.cmake)
 
-# TODO: Add tests.
+#TODO : Add tests.
 
-# add_executable(testlib
-#     test/testlib.cpp)
+#add_executable(testlib
+#test / testlib.cpp)
 
-# target_link_libraries(testlib
-#     lib)
+#target_link_libraries(testlib
+#lib)
 
-# add_test(testlib testlib)
+#add_test(testlib testlib)
