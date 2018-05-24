@@ -3,9 +3,9 @@
 #include <GLFW/glfw3.h>
 #include <vkmol/vkmol.h>
 
+#include <cstdio>
 #include <utility>
 #include <vector>
-#include <cstdio>
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "OCDFAInspection"
@@ -19,17 +19,22 @@ bool enableValidationLayers = false;
 bool enableValidationLayers = true;
 #endif
 
-void errorCallback(int error, const char* description)
-{
+std::vector<const char *> getGLFWExtensions() {
+  uint32_t GLFWExtensionCount = 0;
+  const char **GLFWExtensions =
+      glfwGetRequiredInstanceExtensions(&GLFWExtensionCount);
+
+  return std::vector<const char *>(GLFWExtensions,
+                                   GLFWExtensions + GLFWExtensionCount);
+}
+
+void glfwErrorCallback(int error, const char *description) {
   fprintf(stderr, "Error (%d): %s\n", error, description);
 }
 
 int main(int argc, char **argv) {
-  // Temporarily.
-  enableValidationLayers = false;
-
-  // 0.0 - Get a window.
-  glfwSetErrorCallback(errorCallback);
+  // 0.0 - Initialize GLFW and create a window.
+  glfwSetErrorCallback(glfwErrorCallback);
   glfwInit();
 
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -37,39 +42,28 @@ int main(int argc, char **argv) {
 
   auto Window = glfwCreateWindow(WIDTH, HEIGHT, "Demo", nullptr, nullptr);
 
-  // 0.1 - Obtain the required extensions from GLFW.
-  uint32_t GLFWExtensionCount = 0;
-  const char **GLFWExtensions =
-      glfwGetRequiredInstanceExtensions(&GLFWExtensionCount);
-
-  std::vector<const char *> Extensions(GLFWExtensions,
-                                       GLFWExtensions + GLFWExtensionCount);
+  auto RequiredExtensions = getGLFWExtensions();
   std::vector<const char *> ValidationLayers;
 
   // 0.2 - Enable debug reporting if needed.
   if (enableValidationLayers) {
-    Extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+    RequiredExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
     ValidationLayers.push_back("VK_LAYER_LUNARG_standard_validation");
   }
 
-  // 1.0 - Obtain an InstanceFactory for these extensions and vlayers and create
-  // an instance.
-  vkmol::InstanceFactory InstanceFactory(Extensions, ValidationLayers);
+  vkmol::Engine Engine(
+      "VkMOL Demo", VK_MAKE_VERSION(1, 0, 0),
+      RequiredExtensions,
+      ValidationLayers,
+      [&](const vk::Instance &Instance) {
+        VkSurfaceKHR Surf;
+        auto Result = glfwCreateWindowSurface(Instance, Window, nullptr, &Surf);
+        return vkmol::SurfaceFactoryResult(vk::Result(Result), Surf);
+      });
 
-  auto [Result, Instance] = InstanceFactory.createInstance("Demo");
-  if (Result != vk::Result::eSuccess) {
-    throw std::runtime_error("Failed to create instance.");
+  if (Engine.initialize() != vk::Result::eSuccess) {
+    throw std::runtime_error("Failed to initialize vkmol.");
   }
-
-  // 2.0 - Get the surface.
-  VkSurfaceKHR Surface;
-  auto CWSResult = glfwCreateWindowSurface(Instance, Window, nullptr, &Surface);
-  if (CWSResult != VK_SUCCESS) {
-    throw std::runtime_error("Failed to create surface.");
-  }
-
-  // 3.0 - Initialize an Engine with the Instance and Surface.
-  vkmol::Engine Engine(Instance, Surface);
 
   // 4.0 – Main loop!
   while (!glfwWindowShouldClose(Window)) {

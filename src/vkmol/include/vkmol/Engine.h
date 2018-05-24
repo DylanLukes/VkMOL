@@ -13,73 +13,98 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <set>
 #include <stdexcept>
 #include <vector>
 
 #include <vkmol/Constants.h>
-#include <vkmol/InstanceFactory.h>
 
 namespace vkmol {
 
+using SurfaceFactoryResult = typename vk::ResultValueType<vk::SurfaceKHR>::type;
+
+using SurfaceFactory =
+    typename std::function<vkmol::SurfaceFactoryResult(const vk::Instance &)>;
+
 class Engine {
 private:
-  vk::Instance Instance;
+  // Engine State
+  // ------------
+
+  vk::UniqueInstance Instance;
   vk::DebugReportCallbackEXT Callback;
-  vk::SurfaceKHR Surface;
+  vk::UniqueSurfaceKHR Surface;
 
   vk::PhysicalDevice PhysicalDevice = nullptr;
-  vk::Device Device;
+  vk::UniqueDevice Device;
 
   vk::Queue GraphicsQueue;
   vk::Queue PresentQueue;
 
-  vk::SwapchainKHR Swapchain;
+  vk::UniqueSwapchainKHR Swapchain;
   std::vector<vk::Image> SwapchainImages;
   vk::Format SwapchainFormat;
   vk::Extent2D SwapchainExtent;
   std::vector<vk::ImageView> SwapchainImageViews;
   std::vector<vk::Framebuffer> SwapchainFramebuffers;
 
-  vk::RenderPass RenderPass;
-  vk::DescriptorSetLayout DescriptorSetLayout;
-  vk::PipelineLayout PipelineLayout;
-  vk::Pipeline GraphicsPipeline;
+  vk::UniqueRenderPass RenderPass;
+  vk::UniqueDescriptorSetLayout DescriptorSetLayout;
+  vk::UniquePipelineLayout PipelineLayout;
+  vk::UniquePipeline GraphicsPipeline;
 
-  vk::CommandPool CommandPool;
+  vk::UniqueCommandPool CommandPool;
 
-  vk::Image DepthImage;
-  vk::DeviceMemory DepthImageMemory;
-  vk::ImageView DepthImageView;
+  vk::UniqueImage DepthImage;
+  vk::UniqueDeviceMemory DepthImageMemory;
+  vk::UniqueImageView DepthImageView;
 
-  vk::Buffer VertexBuffer;
-  vk::DeviceMemory VertexBufferMemory;
-  vk::Buffer IndexBuffer;
-  vk::DeviceMemory IndexBufferMemory;
+  vk::UniqueBuffer VertexBuffer;
+  vk::UniqueDeviceMemory VertexBufferMemory;
+  vk::UniqueBuffer IndexBuffer;
+  vk::UniqueDeviceMemory IndexBufferMemory;
 
-  vk::Buffer UniformBuffer;
-  vk::DeviceMemory UniformBufferMemory;
+  vk::UniqueBuffer UniformBuffer;
+  vk::UniqueDeviceMemory UniformBufferMemory;
 
-  vk::DescriptorPool DescriptorPool;
-  vk::DescriptorSet DescriptorSet;
+  vk::UniqueDescriptorPool DescriptorPool;
+  vk::UniqueDescriptorSet DescriptorSet;
 
-  std::vector<vk::CommandBuffer> CommandBuffers;
+  std::vector<vk::UniqueCommandBuffer> CommandBuffers;
 
-  std::vector<vk::Semaphore> ImageAvailableSemaphores;
-  std::vector<vk::Semaphore> RenderFinishedSemaphores;
-  std::vector<vk::Fence> InFlightFences;
+  std::vector<vk::UniqueSemaphore> ImageAvailableSemaphores;
+  std::vector<vk::UniqueSemaphore> RenderFinishedSemaphores;
+  std::vector<vk::UniqueFence> InFlightFences;
 
   size_t CurrentFrame;
 
-public:
-  Engine(vk::Instance Instance, vk::SurfaceKHR Surface)
-      : Instance(Instance), Surface(Surface) {}
+  // Initialization State
+  // --------------------
+  const char *AppName;
+  uint32_t AppVersion;
+  std::vector<const char *> Extensions;
+  std::vector<const char *> ValidationLayers;
 
-  void setSurface(vk::SurfaceKHR Surface);
+  SurfaceFactory SurfaceFactory;
+  bool EnableValidationLayers;
+
+  // Setup Routines
+  // --------------
+  vk::Result createInstance();
+  vk::Result setupDebugCallback();
+
+public:
+  Engine(const char *AppName, uint32_t AppVersion,
+         std::vector<const char *> Extensions,
+         std::vector<const char *> ValidationLayers,
+         vkmol::SurfaceFactory SurfaceFactory);
+  ~Engine();
+
+  vk::Result initialize();
 
   void draw();
-  void waitIdle();
 
   void cleanup();
 };

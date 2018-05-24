@@ -1,19 +1,11 @@
 #ifndef VKMOL_CONSTANTS_H
 #define VKMOL_CONSTANTS_H
 
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan.hpp>
 
 namespace vkmol {
 
 static const char *VKMOL_ENGINE_NAME = "VkMOL";
-
-typedef enum Result {
-  VKMOL_SUCCESS = VK_SUCCESS, // 0
-  VKMOL_FAILURE = -1,
-  VKMOL_ERROR_INITIALIZATION_FAILED = VK_ERROR_INITIALIZATION_FAILED,
-  VKMOL_ERROR_LAYER_NOT_PRESENT = VK_ERROR_LAYER_NOT_PRESENT,
-  VKMOL_ERROR_EXTENSION_NOT_PRESENT = VK_ERROR_EXTENSION_NOT_PRESENT
-} Result;
 
 } // namespace vkmol
 
