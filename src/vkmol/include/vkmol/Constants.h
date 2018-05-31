@@ -1,8 +1,6 @@
 #ifndef VKMOL_CONSTANTS_H
 #define VKMOL_CONSTANTS_H
 
-#include <vulkan/vulkan.hpp>
-
 namespace vkmol {
 
 static const char *VKMOL_ENGINE_NAME = "VkMOL";

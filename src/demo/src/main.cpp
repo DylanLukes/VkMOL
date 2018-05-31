@@ -7,9 +7,6 @@
 #include <utility>
 #include <vector>
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "OCDFAInspection"
-
 const int WIDTH = 800;
 const int HEIGHT = 600;
 
@@ -42,21 +39,21 @@ int main(int argc, char **argv) {
 
   auto Window = glfwCreateWindow(WIDTH, HEIGHT, "Demo", nullptr, nullptr);
 
-  auto RequiredExtensions = getGLFWExtensions();
+  auto InstanceExtensions = getGLFWExtensions();
+  std::vector<const char *> DeviceExtensions;
   std::vector<const char *> ValidationLayers;
 
   // 0.2 - Enable debug reporting if needed.
   if (enableValidationLayers) {
-    RequiredExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
+    InstanceExtensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
     ValidationLayers.push_back("VK_LAYER_LUNARG_standard_validation");
   }
 
   vkmol::Engine Engine(
-      "VkMOL Demo", VK_MAKE_VERSION(1, 0, 0),
-      RequiredExtensions,
-      ValidationLayers,
-      [&](const vk::Instance &Instance) {
+      "VkMOL Demo", VK_MAKE_VERSION(1, 0, 0), InstanceExtensions,
+      DeviceExtensions, ValidationLayers, [&](const vk::Instance &Instance) {
         VkSurfaceKHR Surf;
+
         auto Result = glfwCreateWindowSurface(Instance, Window, nullptr, &Surf);
         return vkmol::SurfaceFactoryResult(vk::Result(Result), Surf);
       });
@@ -73,9 +70,5 @@ int main(int argc, char **argv) {
     Engine.draw();
   }
 
-  // 5.0 – Wait for idle and explicitly clean up.
-  Engine.cleanup();
   glfwDestroyWindow(Window);
 }
-
-#pragma clang diagnostic pop

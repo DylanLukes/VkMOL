@@ -23,13 +23,36 @@
 
 namespace vkmol {
 
-using SurfaceFactoryResult = typename vk::ResultValueType<vk::SurfaceKHR>::type;
+using SurfaceFactoryResult = typename vk::ResultValue<vk::SurfaceKHR>;
 
 using SurfaceFactory =
     typename std::function<vkmol::SurfaceFactoryResult(const vk::Instance &)>;
 
 class Engine {
 private:
+  // Statics
+  // -------
+  static const std::vector<const char *> RequiredInstanceExtensions;
+  static const std::vector<const char *> RequiredDeviceExtensions;
+
+  // Structs
+  // -------
+
+  struct QueueFamilyIndices {
+    int GraphicsFamilyIndex = -1;
+    int PresentFamilyIndex = -1;
+
+    bool isComplete() {
+      return GraphicsFamilyIndex >= 0 && PresentFamilyIndex >= 0;
+    }
+  };
+
+  struct SwapchainSupportDetails {
+    vk::SurfaceCapabilitiesKHR Capabilities;
+    std::vector<vk::SurfaceFormatKHR> Formats;
+    std::vector<vk::PresentModeKHR> PresentModes;
+  };
+
   // Engine State
   // ------------
 
@@ -85,24 +108,62 @@ private:
   // --------------------
   const char *AppName;
   uint32_t AppVersion;
-  std::vector<const char *> Extensions;
+  std::vector<const char *> InstanceExtensions;
+  std::vector<const char *> DeviceExtensions;
   std::vector<const char *> ValidationLayers;
 
   SurfaceFactory SurfaceFactory;
-  bool EnableValidationLayers;
 
   // Setup Routines
   // --------------
   vk::Result setupInstance();
+  vk::Result setupSurface();
   vk::Result setupDebugCallback();
   vk::Result setupPhysicalDevice();
+  vk::Result setupLogicalDevice();
 
   // Setup Utilities
   // ---------------
 
+  /**
+   * Assigns a score to a PhysicalDevice. Higher is better.
+   * @param Device the device to score.
+   * @return a positive integer, or zero for a non-viable device.
+   */
+  vk::ResultValue<uint32_t> scoreDevice(const vk::PhysicalDevice &Device);
+
+  /**
+   * Checks whether a device supports the required extensions.
+   * @param Device the device to check.
+   * @return true if the device is viable, false otherwise.
+   */
+  vk::ResultValue<bool>
+  checkDeviceExtensionSupport(const vk::PhysicalDevice &Device);
+
+  /**
+   * Queries the available queue families for a device.
+   * @param Device the device to query queue families of.
+   * @return a populated QueueFamilyIndices.
+   */
+  vk::ResultValue<QueueFamilyIndices>
+  queryQueueFamilies(const vk::PhysicalDevice &Device);
+
+  vk::ResultValue<SwapchainSupportDetails>
+  querySwapchainSupport(const vk::PhysicalDevice &Device);
+
+  vk::SurfaceFormatKHR
+  chooseSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &Formats);
+
+  vk::PresentModeKHR
+  choosePresentMode(const std::vector<vk::PresentModeKHR> &Modes);
+
+  vk::Extent2D
+  chooseExtent(const std::vector<vk::Extent2D> &Extents);
+
 public:
   Engine(const char *AppName, uint32_t AppVersion,
-         std::vector<const char *> Extensions,
+         std::vector<const char *> InstanceExtensions,
+         std::vector<const char *> DeviceExtensions,
          std::vector<const char *> ValidationLayers,
          vkmol::SurfaceFactory SurfaceFactory);
   ~Engine();
@@ -110,8 +171,6 @@ public:
   vk::Result initialize();
 
   void draw();
-
-  void cleanup();
 };
 
 } // namespace vkmol

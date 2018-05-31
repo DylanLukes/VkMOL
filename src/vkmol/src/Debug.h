@@ -8,10 +8,6 @@ VKAPI_ATTR VkResult VKAPI_CALL createDebugReportCallbackEXT(
     const VkAllocationCallbacks *pAllocator,
     VkDebugReportCallbackEXT *pCallback);
 
-void destroyDebugReportCallbackEXT(VkInstance instance,
-                                   VkDebugReportCallbackEXT callback,
-                                   const VkAllocationCallbacks *pAllocator);
-
 VKAPI_ATTR void VKAPI_CALL destroyDebugReportCallbackEXT(
     VkInstance instance, VkDebugReportCallbackEXT callback,
     const VkAllocationCallbacks *pAllocator);
