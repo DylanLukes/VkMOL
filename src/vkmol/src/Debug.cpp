@@ -1,13 +1,13 @@
 #include <vulkan/vulkan.hpp>
 
-#include "Debug.h"
+#include "vkmol/Debug.h"
 
 #include <iostream>
+#include <sstream>
 
-namespace vkmol {
-
-VKAPI_ATTR VkResult VKAPI_CALL createDebugReportCallbackEXT(
-    VkInstance instance, const VkDebugReportCallbackCreateInfoEXT *pCreateInfo,
+VKAPI_ATTR VkResult VKAPI_CALL vkCreateDebugReportCallbackEXT(
+    VkInstance instance,
+    const VkDebugReportCallbackCreateInfoEXT *pCreateInfo,
     const VkAllocationCallbacks *pAllocator,
     VkDebugReportCallbackEXT *pCallback) {
   auto func = (PFN_vkCreateDebugReportCallbackEXT)vkGetInstanceProcAddr(
@@ -19,8 +19,9 @@ VKAPI_ATTR VkResult VKAPI_CALL createDebugReportCallbackEXT(
   }
 }
 
-VKAPI_ATTR void VKAPI_CALL destroyDebugReportCallbackEXT(
-    VkInstance instance, VkDebugReportCallbackEXT callback,
+VKAPI_ATTR void VKAPI_CALL vkDestroyDebugReportCallbackEXT(
+    VkInstance instance,
+    VkDebugReportCallbackEXT callback,
     const VkAllocationCallbacks *pAllocator) {
   auto func = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(
       instance, "vkDestroyDebugReportCallbackEXT");
@@ -30,13 +31,29 @@ VKAPI_ATTR void VKAPI_CALL destroyDebugReportCallbackEXT(
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL debugReportMessageEXT(
-    VkDebugReportFlagsEXT flags, VkDebugReportObjectTypeEXT objectType,
-    uint64_t object, size_t location, int32_t messageCode,
-    const char *pLayerPrefix, const char *pMessage, void *pUserData) {
+    VkDebugReportFlagsEXT flags,
+    VkDebugReportObjectTypeEXT objectType,
+    uint64_t object,
+    size_t location,
+    int32_t messageCode,
+    const char *pLayerPrefix,
+    const char *pMessage,
+    void *pUserData) {
 
-  std::cerr << "validation layer: " << pMessage << std::endl;
+  std::string prefix("");
+
+  if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) prefix += "ERROR:";
+  if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) prefix += "WARNING:";
+  if (flags & VK_DEBUG_REPORT_INFORMATION_BIT_EXT) prefix += "INFO:";
+  if (flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT) prefix += "DEBUG:";
+  if (flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT)
+    prefix += "PERFORMANCE:";
+
+  std::stringstream debug;
+  debug << prefix << " [" << pLayerPrefix << "] Code " << messageCode << " : " << pMessage;
+
+  // TODO: handle differently elsewhere?
+  std::cerr << debug.str() << "\n";
 
   return VK_FALSE;
 }
-
-} // namespace vkmol

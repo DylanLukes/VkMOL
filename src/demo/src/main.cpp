@@ -49,14 +49,25 @@ int main(int argc, char **argv) {
     ValidationLayers.push_back("VK_LAYER_LUNARG_standard_validation");
   }
 
-  vkmol::Engine Engine(
-      "VkMOL Demo", VK_MAKE_VERSION(1, 0, 0), InstanceExtensions,
-      DeviceExtensions, ValidationLayers, [&](const vk::Instance &Instance) {
-        VkSurfaceKHR Surf;
+  vkmol::engine::EngineCreateInfo CreateInfo;
+  CreateInfo.AppName = "VkMol Demo";
+  CreateInfo.AppVersion = VK_MAKE_VERSION(1, 0, 0);
+  CreateInfo.InstanceExtensions = InstanceExtensions;
+  CreateInfo.DeviceExtensions = DeviceExtensions;
+  CreateInfo.ValidationLayers = ValidationLayers;
+  CreateInfo.SurfaceFactory = [&](const vk::Instance &Instance) {
+    VkSurfaceKHR Surf;
 
-        auto Result = glfwCreateWindowSurface(Instance, Window, nullptr, &Surf);
-        return vkmol::SurfaceFactoryResult(vk::Result(Result), Surf);
-      });
+    auto Result = glfwCreateWindowSurface(Instance, Window, nullptr, &Surf);
+    return vk::ResultValue<vk::SurfaceKHR>(vk::Result(Result), Surf);
+  };
+  CreateInfo.WindowSizeCallback = [&](void) {
+    int Width, Height;
+    glfwGetWindowSize(Window, &Width, &Height);
+    return std::make_tuple(Width, Height);
+  };
+
+  vkmol::engine::Engine Engine(CreateInfo);
 
   auto Result = Engine.initialize();
   if (Result != vk::Result::eSuccess) {

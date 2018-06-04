@@ -22,11 +22,50 @@
 #include <vkmol/Constants.h>
 
 namespace vkmol {
+namespace engine {
 
-using SurfaceFactoryResult = typename vk::ResultValue<vk::SurfaceKHR>;
+using SurfaceFactory = typename std::function<vk::ResultValue<vk::SurfaceKHR>(
+    const vk::Instance &)>;
 
-using SurfaceFactory =
-    typename std::function<vkmol::SurfaceFactoryResult(const vk::Instance &)>;
+using WindowSizeCallback = typename std::function<std::tuple<int, int>(void)>;
+
+struct EngineCreateInfo {
+  const char *AppName;
+  uint32_t AppVersion;
+  std::vector<const char *> InstanceExtensions;
+  std::vector<const char *> DeviceExtensions;
+  std::vector<const char *> ValidationLayers;
+
+  SurfaceFactory SurfaceFactory;
+  WindowSizeCallback WindowSizeCallback;
+};
+
+struct QueueFamilyIndices {
+  int GraphicsFamilyIndex = -1;
+  int PresentFamilyIndex = -1;
+
+  bool isComplete() {
+    return GraphicsFamilyIndex >= 0 && PresentFamilyIndex >= 0;
+  }
+
+  explicit operator std::vector<uint32_t>() {
+    std::vector<uint32_t> V;
+    if (GraphicsFamilyIndex > 0) V.push_back(GraphicsFamilyIndex);
+    if (PresentFamilyIndex > 0) V.push_back(PresentFamilyIndex);
+    return V;
+  }
+
+  explicit operator std::set<uint32_t>() {
+    std::vector<uint32_t> V(*this);
+    return std::set<uint32_t>(V.begin(), V.end());
+  }
+};
+
+struct SwapchainSupportDetails {
+  vk::SurfaceCapabilitiesKHR Capabilities;
+  std::vector<vk::SurfaceFormatKHR> Formats;
+  std::vector<vk::PresentModeKHR> PresentModes;
+};
 
 class Engine {
 private:
@@ -35,28 +74,11 @@ private:
   static const std::vector<const char *> RequiredInstanceExtensions;
   static const std::vector<const char *> RequiredDeviceExtensions;
 
-  // Structs
-  // -------
-
-  struct QueueFamilyIndices {
-    int GraphicsFamilyIndex = -1;
-    int PresentFamilyIndex = -1;
-
-    bool isComplete() {
-      return GraphicsFamilyIndex >= 0 && PresentFamilyIndex >= 0;
-    }
-  };
-
-  struct SwapchainSupportDetails {
-    vk::SurfaceCapabilitiesKHR Capabilities;
-    std::vector<vk::SurfaceFormatKHR> Formats;
-    std::vector<vk::PresentModeKHR> PresentModes;
-  };
-
   // Engine State
   // ------------
 
-  VkDebugReportCallbackEXT Callback;
+
+  vk::UniqueDebugReportCallbackEXT Callback;
 
   vk::UniqueInstance Instance;
   vk::UniqueSurfaceKHR Surface;
@@ -106,21 +128,28 @@ private:
 
   // Initialization State
   // --------------------
-  const char *AppName;
-  uint32_t AppVersion;
+  vk::ApplicationInfo ApplicationInfo;
+
   std::vector<const char *> InstanceExtensions;
   std::vector<const char *> DeviceExtensions;
   std::vector<const char *> ValidationLayers;
 
   SurfaceFactory SurfaceFactory;
+  WindowSizeCallback GetWindowSize;
 
   // Setup Routines
   // --------------
   vk::Result setupInstance();
+
   vk::Result setupSurface();
+
   vk::Result setupDebugCallback();
+
   vk::Result setupPhysicalDevice();
+
   vk::Result setupLogicalDevice();
+
+  vk::Result setupSwapchain();
 
   // Setup Utilities
   // ---------------
@@ -157,15 +186,10 @@ private:
   vk::PresentModeKHR
   choosePresentMode(const std::vector<vk::PresentModeKHR> &Modes);
 
-  vk::Extent2D
-  chooseExtent(const std::vector<vk::Extent2D> &Extents);
+  vk::Extent2D chooseExtent(const vk::SurfaceCapabilitiesKHR &Capabilities);
 
 public:
-  Engine(const char *AppName, uint32_t AppVersion,
-         std::vector<const char *> InstanceExtensions,
-         std::vector<const char *> DeviceExtensions,
-         std::vector<const char *> ValidationLayers,
-         vkmol::SurfaceFactory SurfaceFactory);
+  Engine(EngineCreateInfo CreateInfo);
   ~Engine();
 
   vk::Result initialize();
@@ -173,6 +197,7 @@ public:
   void draw();
 };
 
+} // namespace engine
 } // namespace vkmol
 
 #endif // vk::MOL_ENGINE_H

@@ -11,7 +11,7 @@ if (${FORCE_COLORED_OUTPUT})
 endif ()
 
 add_library(vkmol
-    src/Engine.cpp
+    src/engine/Engine.cpp
     src/Debug.cpp)
 
 target_include_directories(vkmol PUBLIC

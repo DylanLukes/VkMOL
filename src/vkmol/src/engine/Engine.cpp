@@ -1,8 +1,8 @@
 #include <vulkan/vulkan.hpp>
 
-#include "Debug.h"
 #include "Utilities.h"
-#include <vkmol/Engine.h>
+#include <vkmol/Debug.h>
+#include <vkmol/engine/Engine.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -10,58 +10,55 @@
 #include <utility>
 
 namespace vkmol {
+namespace engine {
 
 const std::vector<const char *> Engine::RequiredInstanceExtensions = {};
 
 const std::vector<const char *> Engine::RequiredDeviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
-Engine::Engine(const char *AppName, uint32_t AppVersion,
-               std::vector<const char *> InstanceExtensions,
-               std::vector<const char *> DeviceExtensions,
-               std::vector<const char *> ValidationLayers,
-               vkmol::SurfaceFactory SurfaceFactory)
-    : AppName(AppName), AppVersion(AppVersion),
-      InstanceExtensions(std::move(InstanceExtensions)),
-      DeviceExtensions(std::move(DeviceExtensions)),
-      ValidationLayers(std::move(ValidationLayers)),
-      SurfaceFactory(std::move(SurfaceFactory)) {
+Engine::Engine(EngineCreateInfo CreateInfo)
+    : ApplicationInfo(
+          CreateInfo.AppName,
+          CreateInfo.AppVersion,
+          VKMOL_ENGINE_NAME,
+          VK_MAKE_VERSION(1, 0, 0),
+          VK_API_VERSION_1_0),
+      InstanceExtensions(std::move(CreateInfo.InstanceExtensions)),
+      DeviceExtensions(std::move(CreateInfo.DeviceExtensions)),
+      ValidationLayers(std::move(CreateInfo.ValidationLayers)),
+      SurfaceFactory(std::move(CreateInfo.SurfaceFactory)),
+      GetWindowSize(std::move(CreateInfo.WindowSizeCallback)) {
 
-  InstanceExtensions.reserve(InstanceExtensions.size() +
-                             RequiredInstanceExtensions.size());
+  InstanceExtensions.reserve(
+      InstanceExtensions.size() + RequiredInstanceExtensions.size());
 
-  InstanceExtensions.insert(InstanceExtensions.end(),
-                            RequiredInstanceExtensions.begin(),
-                            RequiredInstanceExtensions.end());
+  InstanceExtensions.insert(
+      InstanceExtensions.end(),
+      RequiredInstanceExtensions.begin(),
+      RequiredInstanceExtensions.end());
 
-  DeviceExtensions.reserve(DeviceExtensions.size() +
-                           RequiredDeviceExtensions.size());
+  DeviceExtensions.reserve(
+      DeviceExtensions.size() + RequiredDeviceExtensions.size());
 
-  DeviceExtensions.insert(DeviceExtensions.end(),
-                          RequiredDeviceExtensions.begin(),
-                          RequiredDeviceExtensions.end());
+  DeviceExtensions.insert(
+      DeviceExtensions.end(),
+      RequiredDeviceExtensions.begin(),
+      RequiredDeviceExtensions.end());
 }
 
-Engine::~Engine() {
-  if (!ValidationLayers.empty()) {
-    destroyDebugReportCallbackEXT(*Instance, Callback, nullptr);
-  }
-}
+Engine::~Engine() {}
 
 vk::Result Engine::setupInstance() {
   vk::Result Result;
-  vk::ApplicationInfo AppInfo = {AppName, AppVersion, VKMOL_ENGINE_NAME,
-                                 VK_MAKE_VERSION(1, 0, 0), VK_API_VERSION_1_0};
 
-  vk::InstanceCreateFlags Flags;
-
-  vk::InstanceCreateInfo CreateInfo = {
-      Flags,
-      &AppInfo,
-      static_cast<uint32_t>(ValidationLayers.size()),
-      ValidationLayers.data(),
-      static_cast<uint32_t>(InstanceExtensions.size()),
-      InstanceExtensions.data()};
+  vk::InstanceCreateInfo CreateInfo;
+  CreateInfo.flags = {};
+  CreateInfo.pApplicationInfo = &ApplicationInfo;
+  CreateInfo.enabledLayerCount = uint32_t(ValidationLayers.size());
+  CreateInfo.ppEnabledLayerNames = ValidationLayers.data();
+  CreateInfo.enabledExtensionCount = uint32_t(InstanceExtensions.size());
+  CreateInfo.ppEnabledExtensionNames = InstanceExtensions.data();
 
   std::tie(Result, Instance) = take(vk::createInstanceUnique(CreateInfo));
   return Result;
@@ -79,19 +76,22 @@ vk::Result Engine::setupSurface() {
 }
 
 vk::Result Engine::setupDebugCallback() {
+  vk::Result Result;
+
   if (ValidationLayers.empty()) {
     return vk::Result::eSuccess;
   }
 
-  VkDebugReportCallbackCreateInfoEXT CreateInfo = {};
-  CreateInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
+  vk::DebugReportCallbackCreateInfoEXT CreateInfo;
   CreateInfo.flags =
-      VK_DEBUG_REPORT_ERROR_BIT_EXT | VK_DEBUG_REPORT_WARNING_BIT_EXT;
+      vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning;
+  // vk::DebugReportFlagBitsEXT::eDebug;
   CreateInfo.pfnCallback = debugReportMessageEXT;
 
-  auto Result =
-      createDebugReportCallbackEXT(*Instance, &CreateInfo, nullptr, &Callback);
-  return vk::Result(Result);
+  std::tie(Result, Callback) =
+      take(Instance->createDebugReportCallbackEXTUnique(CreateInfo));
+
+  return Result;
 }
 
 vk::Result Engine::setupPhysicalDevice() {
@@ -134,7 +134,9 @@ vk::Result Engine::setupLogicalDevice() {
 
   for (int QueueFamily : UniqueQueueFamilies) {
     vk::DeviceQueueCreateInfo QueueCreateInfo(
-        vk::DeviceQueueCreateFlags(), static_cast<uint32_t>(QueueFamily), 1,
+        vk::DeviceQueueCreateFlags(),
+        static_cast<uint32_t>(QueueFamily),
+        1,
         &QueuePriority);
     QueueCreateInfos.push_back(QueueCreateInfo);
   }
@@ -142,9 +144,12 @@ vk::Result Engine::setupLogicalDevice() {
   vk::PhysicalDeviceFeatures DeviceFeatures;
 
   vk::DeviceCreateInfo CreateInfo(
-      vk::DeviceCreateFlags(), static_cast<uint32_t>(QueueCreateInfos.size()),
-      QueueCreateInfos.data(), static_cast<uint32_t>(ValidationLayers.size()),
-      ValidationLayers.data(), static_cast<uint32_t>(DeviceExtensions.size()),
+      vk::DeviceCreateFlags(),
+      uint32_t(QueueCreateInfos.size()),
+      QueueCreateInfos.data(),
+      uint32_t(ValidationLayers.size()),
+      ValidationLayers.data(),
+      uint32_t(DeviceExtensions.size()),
       DeviceExtensions.data());
 
   std::tie(Result, Device) =
@@ -159,13 +164,41 @@ vk::Result Engine::setupLogicalDevice() {
   return vk::Result::eSuccess;
 }
 
+vk::Result Engine::setupSwapchain() {
+  vk::Result Result;
+  vk::SwapchainCreateInfoKHR CreateInfo;
+
+  SwapchainSupportDetails SwapchainSupport;
+  std::tie(Result, SwapchainSupport) = querySwapchainSupport(PhysicalDevice);
+  GUARD_RESULT(Result);
+
+  auto SurfaceFormat = chooseSurfaceFormat(SwapchainSupport.Formats);
+  auto PresentMode = choosePresentMode(SwapchainSupport.PresentModes);
+  auto Extent = chooseExtent(SwapchainSupport.Capabilities);
+
+  uint32_t MinImageCount = SwapchainSupport.Capabilities.minImageCount + 1;
+
+  if (SwapchainSupport.Capabilities.maxImageCount > 0 &&
+      MinImageCount > SwapchainSupport.Capabilities.maxImageCount) {
+    MinImageCount = SwapchainSupport.Capabilities.maxImageCount;
+  }
+
+  QueueFamilyIndices QueueFamilyIndices;
+  std::tie(Result, QueueFamilyIndices) = queryQueueFamilies(PhysicalDevice);
+  GUARD_RESULT(Result);
+
+  CreateInfo.flags = {};
+
+  return vk::Result::eSuccess;
+}
+
 vk::ResultValue<uint32_t>
 Engine::scoreDevice(const vk::PhysicalDevice &Device) {
   vk::Result Result;
   uint32_t Score = 0;
 
   // Check queue families:
-  Engine::QueueFamilyIndices QueueFamilyIndices;
+  QueueFamilyIndices QueueFamilyIndices;
   std::tie(Result, QueueFamilyIndices) = queryQueueFamilies(Device);
   GUARD_RESULT_VALUE(Result, Score);
 
@@ -212,8 +245,6 @@ Engine::scoreDevice(const vk::PhysicalDevice &Device) {
   // Can also score by limits and other properties here...
   // score += Properties.limits.maxWhatever
 
-  // For now, clamp non-failures to 1.
-
   return {vk::Result::eSuccess, Score};
 }
 
@@ -223,8 +254,8 @@ Engine::checkDeviceExtensionSupport(const vk::PhysicalDevice &Device) {
       Device.enumerateDeviceExtensionProperties();
   GUARD_RESULT_VALUE(Result, false);
 
-  std::set<std::string> RequiredExtensions(DeviceExtensions.begin(),
-                                           DeviceExtensions.end());
+  std::set<std::string> RequiredExtensions(
+      DeviceExtensions.begin(), DeviceExtensions.end());
 
   for (const auto &Extension : AvailableExtensions) {
     RequiredExtensions.erase(Extension.extensionName);
@@ -233,7 +264,7 @@ Engine::checkDeviceExtensionSupport(const vk::PhysicalDevice &Device) {
   return {vk::Result::eSuccess, RequiredExtensions.empty()};
 }
 
-vk::ResultValue<Engine::QueueFamilyIndices>
+vk::ResultValue<QueueFamilyIndices>
 Engine::queryQueueFamilies(const vk::PhysicalDevice &Device) {
   QueueFamilyIndices Indices;
 
@@ -263,7 +294,7 @@ Engine::queryQueueFamilies(const vk::PhysicalDevice &Device) {
   return {vk::Result::eSuccess, Indices};
 }
 
-vk::ResultValue<Engine::SwapchainSupportDetails>
+vk::ResultValue<SwapchainSupportDetails>
 Engine::querySwapchainSupport(const vk::PhysicalDevice &Device) {
   SwapchainSupportDetails Details;
   vk::Result Result;
@@ -303,10 +334,41 @@ Engine::chooseSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &Formats) {
 }
 
 vk::PresentModeKHR
-Engine::choosePresentMode(const std::vector<vk::PresentModeKHR> &Modes) {}
+Engine::choosePresentMode(const std::vector<vk::PresentModeKHR> &Modes) {
+  vk::PresentModeKHR PreferredMode = vk::PresentModeKHR::eFifo;
+
+  for (const auto &Mode : Modes) {
+    if (Mode == vk::PresentModeKHR::eMailbox) {
+      return Mode;
+    } else if (Mode == vk::PresentModeKHR::eImmediate) {
+      PreferredMode = Mode;
+    }
+  }
+
+  return PreferredMode;
+}
 
 vk::Extent2D
-Engine::chooseExtent(const std::vector<vk::Extent2D> &Extents) {}
+Engine::chooseExtent(const vk::SurfaceCapabilitiesKHR &Capabilities) {
+  if (Capabilities.currentExtent.width !=
+      std::numeric_limits<uint32_t>::max()) {
+    return Capabilities.currentExtent;
+  } else {
+    auto [Width, Height] = GetWindowSize();
+
+    vk::Extent2D ActualExtent = {static_cast<uint32_t>(Width),
+                                 static_cast<uint32_t>(Height)};
+
+    ActualExtent.width = std::max(
+        Capabilities.minImageExtent.width,
+        std::min(Capabilities.maxImageExtent.width, ActualExtent.width));
+    ActualExtent.height = std::max(
+        Capabilities.minImageExtent.height,
+        std::min(Capabilities.maxImageExtent.height, ActualExtent.height));
+
+    return ActualExtent;
+  }
+}
 
 vk::Result Engine::initialize() {
   vk::Result Result;
@@ -326,12 +388,13 @@ vk::Result Engine::initialize() {
   Result = setupLogicalDevice();
   GUARD_RESULT(Result);
 
-  //  Result = setupSwapchain();
-  //  GUARD_RESULT(Result);
+  Result = setupSwapchain();
+  GUARD_RESULT(Result);
 
   return vk::Result::eSuccess;
 }
 
 void Engine::draw() {}
 
+} // namespace engine
 } // namespace vkmol

@@ -2,6 +2,6 @@
 #define VKMOL_H
 
 #include <vkmol/Constants.h>
-#include <vkmol/Engine.h>
+#include <vkmol/engine/Engine.h>
 
 #endif /* VKMOL_H */
