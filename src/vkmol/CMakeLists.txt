@@ -41,12 +41,12 @@ install(EXPORT VkMOLConfig DESTINATION share/VkMOL/cmake)
 
 export(TARGETS vkmol FILE VkMOLConfig.cmake)
 
-#TODO : Add tests.
+# TODO : Add tests.
 
-#add_executable(testlib
-#test / testlib.cpp)
+# add_executable(testlib
+# test / testlib.cpp)
 
-#target_link_libraries(testlib
-#lib)
+# target_link_libraries(testlib
+# lib)
 
-#add_test(testlib testlib)
+# add_test(testlib testlib)

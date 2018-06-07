@@ -152,6 +152,7 @@ private:
   vk::Result setupLogicalDevice();
   vk::Result setupSwapchain();
   vk::Result setupImageViews();
+  vk::Result setupRenderPass();
   vk::Result setupGraphicsPipeline();
 
   // Setup Utilities

@@ -247,6 +247,50 @@ vk::Result Engine::setupImageViews() {
   return vk::Result::eSuccess;
 }
 
+vk::Result Engine::setupRenderPass() {
+  vk::Result Result;
+
+  vk::AttachmentDescription ColorAttachment;
+  ColorAttachment.format = SwapchainImageFormat;
+  ColorAttachment.samples = vk::SampleCountFlagBits::e1;
+  ColorAttachment.loadOp = vk::AttachmentLoadOp::eClear;
+  ColorAttachment.storeOp = vk::AttachmentStoreOp::eStore;
+  ColorAttachment.stencilLoadOp = vk::AttachmentLoadOp::eDontCare;
+  ColorAttachment.stencilStoreOp = vk::AttachmentStoreOp::eDontCare;
+  ColorAttachment.initialLayout = vk::ImageLayout::eUndefined;
+  ColorAttachment.finalLayout = vk::ImageLayout::ePresentSrcKHR;
+
+  vk::AttachmentReference ColorAttachmentRef;
+  ColorAttachmentRef.attachment = 0;
+  ColorAttachmentRef.layout = vk::ImageLayout::eColorAttachmentOptimal;
+
+  vk::SubpassDescription Subpass;
+  Subpass.pipelineBindPoint = vk::PipelineBindPoint::eGraphics;
+  Subpass.colorAttachmentCount = 1;
+  Subpass.pColorAttachments = &ColorAttachmentRef;
+
+  vk::SubpassDependency Dependency;
+  Dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+  Dependency.dstSubpass = 0;
+  Dependency.srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+  Dependency.srcAccessMask = vk::AccessFlags();
+  Dependency.dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+  Dependency.dstAccessMask = vk::AccessFlagBits::eColorAttachmentRead |
+                             vk::AccessFlagBits::eColorAttachmentWrite;
+
+  vk::RenderPassCreateInfo RenderPassInfo;
+  RenderPassInfo.attachmentCount = 1;
+  RenderPassInfo.pAttachments = &ColorAttachment;
+  RenderPassInfo.subpassCount = 1;
+  RenderPassInfo.pSubpasses = &Subpass;
+
+  std::tie(Result, RenderPass) =
+      take(Device->createRenderPassUnique(RenderPassInfo));
+  GUARD_RESULT(Result);
+
+  return vk::Result::eSuccess;
+}
+
 vk::Result Engine::setupGraphicsPipeline() {
   vk::Result Result;
   vk::UniqueShaderModule VertShaderModule, FragShaderModule;
@@ -273,6 +317,82 @@ vk::Result Engine::setupGraphicsPipeline() {
   VertexInputInfo.pVertexBindingDescriptions = nullptr;
   VertexInputInfo.vertexAttributeDescriptionCount = 0;
   VertexInputInfo.pVertexAttributeDescriptions = nullptr;
+
+  vk::PipelineInputAssemblyStateCreateInfo InputAssemblyInfo;
+  InputAssemblyInfo.topology = vk::PrimitiveTopology::eTriangleList;
+  InputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
+
+  vk::Viewport Viewport;
+  Viewport.x = 0.0f;
+  Viewport.y = 0.0f;
+  Viewport.width = (float)SwapchainExtent.width;
+  Viewport.height = (float)SwapchainExtent.height;
+  Viewport.minDepth = 0.0f;
+  Viewport.maxDepth = 1.0f;
+
+  vk::Rect2D Scissor;
+  Scissor.offset.x = 0;
+  Scissor.offset.y = 0;
+  Scissor.extent = SwapchainExtent;
+
+  vk::PipelineViewportStateCreateInfo ViewportInfo;
+  ViewportInfo.viewportCount = 1;
+  ViewportInfo.pViewports = &Viewport;
+  ViewportInfo.scissorCount = 1;
+  ViewportInfo.pScissors = &Scissor;
+
+  vk::PipelineRasterizationStateCreateInfo RasterizationInfo;
+  RasterizationInfo.depthClampEnable = VK_FALSE;
+  RasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
+  RasterizationInfo.polygonMode = vk::PolygonMode::eFill;
+  RasterizationInfo.lineWidth = 1.0f;
+  RasterizationInfo.cullMode = vk::CullModeFlagBits::eBack;
+  RasterizationInfo.frontFace = vk::FrontFace::eCounterClockwise;
+  RasterizationInfo.depthBiasEnable = VK_FALSE;
+
+  vk::PipelineMultisampleStateCreateInfo MultisampleInfo;
+  MultisampleInfo.sampleShadingEnable = VK_FALSE;
+  MultisampleInfo.rasterizationSamples = vk::SampleCountFlagBits::e1;
+  MultisampleInfo.minSampleShading = 1.0f;
+  MultisampleInfo.pSampleMask = nullptr;
+  MultisampleInfo.alphaToCoverageEnable = VK_FALSE;
+  MultisampleInfo.alphaToOneEnable = VK_FALSE;
+
+  vk::PipelineColorBlendAttachmentState ColorBlendAttachmentState;
+  ColorBlendAttachmentState.colorWriteMask =
+      vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+      vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+  ColorBlendAttachmentState.blendEnable = VK_TRUE;
+  ColorBlendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
+  ColorBlendAttachmentState.dstColorBlendFactor = vk::BlendFactor::eDstAlpha;
+  ColorBlendAttachmentState.colorBlendOp = vk::BlendOp::eAdd;
+  ColorBlendAttachmentState.srcAlphaBlendFactor =
+      vk::BlendFactor::eOneMinusSrcAlpha;
+  ColorBlendAttachmentState.srcAlphaBlendFactor =
+      vk::BlendFactor::eOneMinusSrcAlpha;
+  ColorBlendAttachmentState.alphaBlendOp = vk::BlendOp::eAdd;
+
+  vk::PipelineColorBlendStateCreateInfo ColorBlendStateInfo;
+  ColorBlendStateInfo.logicOpEnable = VK_FALSE;
+  ColorBlendStateInfo.logicOp = vk::LogicOp::eCopy;
+  ColorBlendStateInfo.attachmentCount = 1;
+  ColorBlendStateInfo.pAttachments = &ColorBlendAttachmentState;
+  ColorBlendStateInfo.blendConstants[0] = 0.0f;
+  ColorBlendStateInfo.blendConstants[1] = 0.0f;
+  ColorBlendStateInfo.blendConstants[2] = 0.0f;
+  ColorBlendStateInfo.blendConstants[3] = 0.0f;
+
+  vk::PipelineLayoutCreateInfo PipelineLayoutInfo;
+  PipelineLayoutInfo.setLayoutCount = 0;
+  PipelineLayoutInfo.pSetLayouts = nullptr;
+  PipelineLayoutInfo.pushConstantRangeCount = 0;
+  PipelineLayoutInfo.pPushConstantRanges = nullptr;
+
+  std::tie(Result, PipelineLayout) =
+      take(Device->createPipelineLayoutUnique(PipelineLayoutInfo));
+  GUARD_RESULT(Result);
+
+  return vk::Result::eSuccess;
 }
 
 vk::ResultValue<uint32_t>
