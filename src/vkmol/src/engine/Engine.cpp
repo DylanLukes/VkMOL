@@ -222,7 +222,7 @@ vk::Result Engine::setupSwapchain() {
 
 vk::Result Engine::setupImageViews() {
   vk::Result Result;
-  SwapchainImageViews.reserve(SwapchainImages.size());
+  SwapchainImageViews.resize(SwapchainImages.size());
 
   for (size_t I = 0; I < SwapchainImages.size(); I++) {
     vk::ImageViewCreateInfo CreateInfo;
@@ -310,7 +310,8 @@ vk::Result Engine::setupGraphicsPipeline() {
   VertShaderStageInfo.module = *FragShaderModule;
   VertShaderStageInfo.pName = "main";
 
-  auto ShaderStages = {VertShaderStageInfo, FragShaderStageInfo};
+  vk::PipelineShaderStageCreateInfo ShaderStages[] = {VertShaderStageInfo,
+                                                      FragShaderStageInfo};
 
   vk::PipelineVertexInputStateCreateInfo VertexInputInfo;
   VertexInputInfo.vertexBindingDescriptionCount = 0;
@@ -372,15 +373,15 @@ vk::Result Engine::setupGraphicsPipeline() {
       vk::BlendFactor::eOneMinusSrcAlpha;
   ColorBlendAttachmentState.alphaBlendOp = vk::BlendOp::eAdd;
 
-  vk::PipelineColorBlendStateCreateInfo ColorBlendStateInfo;
-  ColorBlendStateInfo.logicOpEnable = VK_FALSE;
-  ColorBlendStateInfo.logicOp = vk::LogicOp::eCopy;
-  ColorBlendStateInfo.attachmentCount = 1;
-  ColorBlendStateInfo.pAttachments = &ColorBlendAttachmentState;
-  ColorBlendStateInfo.blendConstants[0] = 0.0f;
-  ColorBlendStateInfo.blendConstants[1] = 0.0f;
-  ColorBlendStateInfo.blendConstants[2] = 0.0f;
-  ColorBlendStateInfo.blendConstants[3] = 0.0f;
+  vk::PipelineColorBlendStateCreateInfo ColorBlendInfo;
+  ColorBlendInfo.logicOpEnable = VK_FALSE;
+  ColorBlendInfo.logicOp = vk::LogicOp::eCopy;
+  ColorBlendInfo.attachmentCount = 1;
+  ColorBlendInfo.pAttachments = &ColorBlendAttachmentState;
+  ColorBlendInfo.blendConstants[0] = 0.0f;
+  ColorBlendInfo.blendConstants[1] = 0.0f;
+  ColorBlendInfo.blendConstants[2] = 0.0f;
+  ColorBlendInfo.blendConstants[3] = 0.0f;
 
   vk::PipelineLayoutCreateInfo PipelineLayoutInfo;
   PipelineLayoutInfo.setLayoutCount = 0;
@@ -390,6 +391,27 @@ vk::Result Engine::setupGraphicsPipeline() {
 
   std::tie(Result, PipelineLayout) =
       take(Device->createPipelineLayoutUnique(PipelineLayoutInfo));
+  GUARD_RESULT(Result);
+
+  vk::GraphicsPipelineCreateInfo PipelineInfo;
+  PipelineInfo.stageCount = 2;
+  PipelineInfo.pStages = ShaderStages;
+  PipelineInfo.pVertexInputState = &VertexInputInfo;
+  PipelineInfo.pInputAssemblyState = &InputAssemblyInfo;
+  PipelineInfo.pViewportState = &ViewportInfo;
+  PipelineInfo.pRasterizationState = &RasterizationInfo;
+  PipelineInfo.pMultisampleState = &MultisampleInfo;
+  PipelineInfo.pDepthStencilState = nullptr;
+  PipelineInfo.pColorBlendState = &ColorBlendInfo;
+  PipelineInfo.pDynamicState = nullptr;
+  PipelineInfo.layout = *PipelineLayout;
+  PipelineInfo.renderPass = *RenderPass;
+  PipelineInfo.subpass = 0;
+  PipelineInfo.basePipelineHandle = nullptr;
+  PipelineInfo.basePipelineIndex = 0;
+
+  std::tie(Result, GraphicsPipeline) = take(
+      Device->createGraphicsPipelineUnique(vk::PipelineCache(), PipelineInfo));
   GUARD_RESULT(Result);
 
   return vk::Result::eSuccess;
@@ -605,6 +627,9 @@ vk::Result Engine::initialize() {
   GUARD_RESULT(Result);
 
   Result = setupImageViews();
+  GUARD_RESULT(Result);
+
+  Result = setupRenderPass();
   GUARD_RESULT(Result);
 
   Result = setupGraphicsPipeline();
