@@ -7,7 +7,7 @@ find_package(Vulkan REQUIRED)
 find_package(glm REQUIRED)
 find_package(glfw3 REQUIRED)
 
-add_subdirectory(src/vkmol)
-add_subdirectory(src/demo)
+add_subdirectory(src/vkmol vkmol)
+add_subdirectory(src/demo demo)
 
 option (FORCE_COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." TRUE)

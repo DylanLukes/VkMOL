@@ -1,6 +1,7 @@
 #include <vulkan/vulkan.hpp>
 
-#include "Utilities.h"
+#include "../shaders/Shaders.h"
+#include "./Utilities.h"
 #include <vkmol/Debug.h>
 #include <vkmol/engine/Engine.h>
 
@@ -22,7 +23,7 @@ Engine::Engine(EngineCreateInfo CreateInfo)
           CreateInfo.AppName,
           CreateInfo.AppVersion,
           VKMOL_ENGINE_NAME,
-          VK_MAKE_VERSION(1, 0, 0),
+          VKMOL_ENGINE_VERSION,
           VK_API_VERSION_1_0),
       InstanceExtensions(std::move(CreateInfo.InstanceExtensions)),
       DeviceExtensions(std::move(CreateInfo.DeviceExtensions)),
@@ -82,14 +83,8 @@ vk::Result Engine::setupDebugCallback() {
     return vk::Result::eSuccess;
   }
 
-  vk::DebugReportCallbackCreateInfoEXT CreateInfo;
-  CreateInfo.flags =
-      vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning;
-  // vk::DebugReportFlagBitsEXT::eDebug;
-  CreateInfo.pfnCallback = debugReportMessageEXT;
-
   std::tie(Result, Callback) =
-      take(Instance->createDebugReportCallbackEXTUnique(CreateInfo));
+      take(Instance->createDebugReportCallbackEXTUnique(DebugReportCreateInfo));
 
   return Result;
 }
@@ -183,13 +178,101 @@ vk::Result Engine::setupSwapchain() {
     MinImageCount = SwapchainSupport.Capabilities.maxImageCount;
   }
 
-  QueueFamilyIndices QueueFamilyIndices;
-  std::tie(Result, QueueFamilyIndices) = queryQueueFamilies(PhysicalDevice);
+  QueueFamilyIndices Indices;
+  std::tie(Result, Indices) = queryQueueFamilies(PhysicalDevice);
+  GUARD_RESULT(Result);
+  std::vector<uint32_t> QueueFamilyIndices(Indices);
+
+  CreateInfo.surface = *Surface;
+  CreateInfo.minImageCount = MinImageCount;
+  CreateInfo.imageFormat = SurfaceFormat.format;
+  CreateInfo.imageColorSpace = SurfaceFormat.colorSpace;
+  CreateInfo.imageExtent = Extent;
+  CreateInfo.imageArrayLayers = 1; // note: 2 for stereoscopic
+  CreateInfo.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
+
+  if (Indices.GraphicsFamilyIndex != Indices.PresentFamilyIndex) {
+    uint32_t QueueFamilyIndices[] = {(uint32_t)Indices.GraphicsFamilyIndex,
+                                     (uint32_t)Indices.PresentFamilyIndex};
+
+    CreateInfo.imageSharingMode = vk::SharingMode::eConcurrent;
+    CreateInfo.queueFamilyIndexCount = 2;
+    CreateInfo.pQueueFamilyIndices = QueueFamilyIndices;
+  } else {
+    CreateInfo.imageSharingMode = vk::SharingMode::eExclusive;
+  }
+
+  CreateInfo.preTransform = SwapchainSupport.Capabilities.currentTransform;
+  CreateInfo.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
+  CreateInfo.presentMode = PresentMode;
+  CreateInfo.clipped = VK_TRUE; // should this always be on?
+
+  std::tie(Result, Swapchain) =
+      take(Device->createSwapchainKHRUnique(CreateInfo));
   GUARD_RESULT(Result);
 
-  CreateInfo.flags = {};
+  std::tie(Result, SwapchainImages) = Device->getSwapchainImagesKHR(*Swapchain);
+  GUARD_RESULT(Result);
+
+  SwapchainImageFormat = SurfaceFormat.format;
+  SwapchainExtent = Extent;
 
   return vk::Result::eSuccess;
+}
+
+vk::Result Engine::setupImageViews() {
+  vk::Result Result;
+  SwapchainImageViews.reserve(SwapchainImages.size());
+
+  for (size_t I = 0; I < SwapchainImages.size(); I++) {
+    vk::ImageViewCreateInfo CreateInfo;
+    CreateInfo.image = SwapchainImages[I];
+    CreateInfo.viewType = vk::ImageViewType::e2D;
+    CreateInfo.format = SwapchainImageFormat;
+    CreateInfo.components.r = vk::ComponentSwizzle::eIdentity;
+    CreateInfo.components.g = vk::ComponentSwizzle::eIdentity;
+    CreateInfo.components.b = vk::ComponentSwizzle::eIdentity;
+    CreateInfo.components.a = vk::ComponentSwizzle::eIdentity;
+    CreateInfo.subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
+    CreateInfo.subresourceRange.baseMipLevel = 0;
+    CreateInfo.subresourceRange.levelCount = 1;
+    CreateInfo.subresourceRange.baseArrayLayer = 0;
+    CreateInfo.subresourceRange.layerCount = 1;
+
+    std::tie(Result, SwapchainImageViews[I]) =
+        take(Device->createImageViewUnique(CreateInfo));
+    GUARD_RESULT(Result);
+  }
+
+  return vk::Result::eSuccess;
+}
+
+vk::Result Engine::setupGraphicsPipeline() {
+  vk::Result Result;
+  vk::UniqueShaderModule VertShaderModule, FragShaderModule;
+
+  std::tie(Result, VertShaderModule) = take(createShaderModule(
+      vkmol::shaders::VertSPIRV, sizeof(vkmol::shaders::VertSPIRV)));
+  std::tie(Result, FragShaderModule) = take(createShaderModule(
+      vkmol::shaders::FragSPIRV, sizeof(vkmol::shaders::FragSPIRV)));
+
+  vk::PipelineShaderStageCreateInfo VertShaderStageInfo;
+  VertShaderStageInfo.stage = vk::ShaderStageFlagBits::eVertex;
+  VertShaderStageInfo.module = *VertShaderModule;
+  VertShaderStageInfo.pName = "main";
+
+  vk::PipelineShaderStageCreateInfo FragShaderStageInfo;
+  VertShaderStageInfo.stage = vk::ShaderStageFlagBits::eVertex;
+  VertShaderStageInfo.module = *FragShaderModule;
+  VertShaderStageInfo.pName = "main";
+
+  auto ShaderStages = {VertShaderStageInfo, FragShaderStageInfo};
+
+  vk::PipelineVertexInputStateCreateInfo VertexInputInfo;
+  VertexInputInfo.vertexBindingDescriptionCount = 0;
+  VertexInputInfo.pVertexBindingDescriptions = nullptr;
+  VertexInputInfo.vertexAttributeDescriptionCount = 0;
+  VertexInputInfo.pVertexAttributeDescriptions = nullptr;
 }
 
 vk::ResultValue<uint32_t>
@@ -370,6 +453,16 @@ Engine::chooseExtent(const vk::SurfaceCapabilitiesKHR &Capabilities) {
   }
 }
 
+vk::ResultValue<vk::UniqueShaderModule>
+Engine::createShaderModule(const uint32_t *Code, size_t CodeSize) {
+  vk::ShaderModuleCreateInfo CreateInfo;
+
+  CreateInfo.codeSize = CodeSize;
+  CreateInfo.pCode = Code;
+
+  return Device->createShaderModuleUnique(CreateInfo);
+}
+
 vk::Result Engine::initialize() {
   vk::Result Result;
 
@@ -389,6 +482,12 @@ vk::Result Engine::initialize() {
   GUARD_RESULT(Result);
 
   Result = setupSwapchain();
+  GUARD_RESULT(Result);
+
+  Result = setupImageViews();
+  GUARD_RESULT(Result);
+
+  Result = setupGraphicsPipeline();
   GUARD_RESULT(Result);
 
   return vk::Result::eSuccess;

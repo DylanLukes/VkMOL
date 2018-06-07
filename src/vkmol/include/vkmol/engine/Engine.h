@@ -20,6 +20,7 @@
 #include <vector>
 
 #include <vkmol/Constants.h>
+#include <vkmol/Debug.h>
 
 namespace vkmol {
 namespace engine {
@@ -77,6 +78,11 @@ private:
   // Engine State
   // ------------
 
+  vk::DebugReportCallbackCreateInfoEXT DebugReportCreateInfo = {
+      vk::DebugReportFlagBitsEXT::eError |
+          vk::DebugReportFlagBitsEXT::eWarning |
+          vk::DebugReportFlagBitsEXT::eDebug,
+      debugReportMessageEXT};
 
   vk::UniqueDebugReportCallbackEXT Callback;
 
@@ -91,10 +97,10 @@ private:
 
   vk::UniqueSwapchainKHR Swapchain;
   std::vector<vk::Image> SwapchainImages;
-  vk::Format SwapchainFormat;
+  vk::Format SwapchainImageFormat;
   vk::Extent2D SwapchainExtent;
-  std::vector<vk::ImageView> SwapchainImageViews;
-  std::vector<vk::Framebuffer> SwapchainFramebuffers;
+  std::vector<vk::UniqueImageView> SwapchainImageViews;
+  std::vector<vk::UniqueFramebuffer> SwapchainFramebuffers;
 
   vk::UniqueRenderPass RenderPass;
   vk::UniqueDescriptorSetLayout DescriptorSetLayout;
@@ -140,16 +146,13 @@ private:
   // Setup Routines
   // --------------
   vk::Result setupInstance();
-
   vk::Result setupSurface();
-
   vk::Result setupDebugCallback();
-
   vk::Result setupPhysicalDevice();
-
   vk::Result setupLogicalDevice();
-
   vk::Result setupSwapchain();
+  vk::Result setupImageViews();
+  vk::Result setupGraphicsPipeline();
 
   // Setup Utilities
   // ---------------
@@ -187,6 +190,9 @@ private:
   choosePresentMode(const std::vector<vk::PresentModeKHR> &Modes);
 
   vk::Extent2D chooseExtent(const vk::SurfaceCapabilitiesKHR &Capabilities);
+
+  vk::ResultValue<vk::UniqueShaderModule>
+  createShaderModule(const uint32_t *Code, size_t CodeSize);
 
 public:
   Engine(EngineCreateInfo CreateInfo);
