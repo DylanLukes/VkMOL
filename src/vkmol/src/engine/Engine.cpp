@@ -224,7 +224,7 @@ vk::Result Engine::setupImageViews() {
   vk::Result Result;
   SwapchainImageViews.resize(SwapchainImages.size());
 
-  for (size_t I = 0; I < SwapchainImages.size(); I++) {
+  for (size_t I = 0; I < SwapchainImages.size(); ++I) {
     vk::ImageViewCreateInfo CreateInfo;
     CreateInfo.image = SwapchainImages[I];
     CreateInfo.viewType = vk::ImageViewType::e2D;
@@ -297,8 +297,11 @@ vk::Result Engine::setupGraphicsPipeline() {
 
   std::tie(Result, VertShaderModule) = take(createShaderModule(
       vkmol::shaders::VertSPIRV, sizeof(vkmol::shaders::VertSPIRV)));
+  GUARD_RESULT(Result);
+
   std::tie(Result, FragShaderModule) = take(createShaderModule(
       vkmol::shaders::FragSPIRV, sizeof(vkmol::shaders::FragSPIRV)));
+  GUARD_RESULT(Result);
 
   vk::PipelineShaderStageCreateInfo VertShaderStageInfo;
   VertShaderStageInfo.stage = vk::ShaderStageFlagBits::eVertex;
@@ -306,9 +309,9 @@ vk::Result Engine::setupGraphicsPipeline() {
   VertShaderStageInfo.pName = "main";
 
   vk::PipelineShaderStageCreateInfo FragShaderStageInfo;
-  VertShaderStageInfo.stage = vk::ShaderStageFlagBits::eVertex;
-  VertShaderStageInfo.module = *FragShaderModule;
-  VertShaderStageInfo.pName = "main";
+  FragShaderStageInfo.stage = vk::ShaderStageFlagBits::eFragment;
+  FragShaderStageInfo.module = *FragShaderModule;
+  FragShaderStageInfo.pName = "main";
 
   vk::PipelineShaderStageCreateInfo ShaderStages[] = {VertShaderStageInfo,
                                                       FragShaderStageInfo};
@@ -413,6 +416,30 @@ vk::Result Engine::setupGraphicsPipeline() {
   std::tie(Result, GraphicsPipeline) = take(
       Device->createGraphicsPipelineUnique(vk::PipelineCache(), PipelineInfo));
   GUARD_RESULT(Result);
+
+  return vk::Result::eSuccess;
+}
+
+vk::Result Engine::setupFramebuffers() {
+  vk::Result Result;
+  SwapchainFramebuffers.resize(SwapchainImageViews.size());
+
+  for (size_t I = 0; I < SwapchainImageViews.size(); ++I) {
+    vk::ImageView Attachments[] = {*SwapchainImageViews[I]};
+
+    vk::FramebufferCreateInfo FramebufferInfo;
+    FramebufferInfo.renderPass = *RenderPass;
+    FramebufferInfo.attachmentCount = 1;
+    FramebufferInfo.pAttachments = Attachments;
+
+    FramebufferInfo.width = SwapchainExtent.width;
+    FramebufferInfo.height = SwapchainExtent.height;
+    FramebufferInfo.layers = 1;
+
+    std::tie(Result, SwapchainFramebuffers[I]) =
+        take(Device->createFramebufferUnique(FramebufferInfo));
+    GUARD_RESULT(Result);
+  }
 
   return vk::Result::eSuccess;
 }
@@ -633,6 +660,9 @@ vk::Result Engine::initialize() {
   GUARD_RESULT(Result);
 
   Result = setupGraphicsPipeline();
+  GUARD_RESULT(Result);
+
+  Result = setupFramebuffers();
   GUARD_RESULT(Result);
 
   return vk::Result::eSuccess;

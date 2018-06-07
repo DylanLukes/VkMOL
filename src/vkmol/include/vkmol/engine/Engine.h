@@ -154,6 +154,7 @@ private:
   vk::Result setupImageViews();
   vk::Result setupRenderPass();
   vk::Result setupGraphicsPipeline();
+  vk::Result setupFramebuffers();
 
   // Setup Utilities
   // ---------------
