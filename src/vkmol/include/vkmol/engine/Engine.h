@@ -155,6 +155,9 @@ private:
   vk::Result setupRenderPass();
   vk::Result setupGraphicsPipeline();
   vk::Result setupFramebuffers();
+  vk::Result setupCommandPool();
+  vk::Result setupCommandBuffers();
+  vk::Result setupSyncObjects();
 
   // Setup Utilities
   // ---------------
@@ -202,7 +205,7 @@ public:
 
   vk::Result initialize();
 
-  void draw();
+  void drawFrame();
 };
 
 } // namespace engine

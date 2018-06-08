@@ -335,8 +335,7 @@ vk::Result Engine::setupGraphicsPipeline() {
   Viewport.maxDepth = 1.0f;
 
   vk::Rect2D Scissor;
-  Scissor.offset.x = 0;
-  Scissor.offset.y = 0;
+  Scissor.offset = vk::Offset2D(0, 0);
   Scissor.extent = SwapchainExtent;
 
   vk::PipelineViewportStateCreateInfo ViewportInfo;
@@ -442,6 +441,85 @@ vk::Result Engine::setupFramebuffers() {
   }
 
   return vk::Result::eSuccess;
+}
+
+vk::Result Engine::setupCommandPool() {
+  vk::Result Result;
+  QueueFamilyIndices QueueFamilyIndices;
+
+  std::tie(Result, QueueFamilyIndices) = queryQueueFamilies(PhysicalDevice);
+
+  vk::CommandPoolCreateInfo PoolInfo;
+  PoolInfo.queueFamilyIndex = uint32_t(QueueFamilyIndices.GraphicsFamilyIndex);
+
+  std::tie(Result, CommandPool) =
+      take(Device->createCommandPoolUnique(PoolInfo));
+  GUARD_RESULT(Result);
+
+  return vk::Result::eSuccess;
+}
+
+vk::Result Engine::setupCommandBuffers() {
+  vk::Result Result;
+  vk::CommandBufferAllocateInfo AllocInfo;
+
+  AllocInfo.commandPool = *CommandPool;
+  AllocInfo.level = vk::CommandBufferLevel::ePrimary;
+  AllocInfo.commandBufferCount = 1;
+
+  // Note: have to allocate and wrap in UniqueHandle manually here.
+  // std::vector<vk::UniqueHandle<vk::T>> cannot be moved properly.
+  std::vector<vk::CommandBuffer> Buffers;
+  std::tie(Result, Buffers) = Device->allocateCommandBuffers(AllocInfo);
+  GUARD_RESULT(Result);
+
+  auto Deleter =
+      vk::UniqueHandleTraits<vk::CommandBuffer>::deleter(*Device, *CommandPool);
+  CommandBuffers.resize(Buffers.size());
+  for (size_t I = 0; I < Buffers.size(); ++I) {
+    CommandBuffers[I] = vk::UniqueCommandBuffer(Buffers[I], Deleter);
+  }
+
+  for (size_t I = 0; I < CommandBuffers.size(); ++I) {
+    vk::CommandBufferBeginInfo BeginInfo;
+
+    BeginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+    BeginInfo.pInheritanceInfo = nullptr;
+
+    Result = CommandBuffers[I]->begin(BeginInfo);
+    GUARD_RESULT(Result);
+
+    vk::RenderPassBeginInfo RenderPassInfo;
+    RenderPassInfo.renderPass = *RenderPass;
+    RenderPassInfo.framebuffer = *SwapchainFramebuffers[I];
+    RenderPassInfo.renderArea.offset = vk::Offset2D(0, 0);
+    RenderPassInfo.renderArea.extent = SwapchainExtent;
+
+    vk::ClearValue ClearColor(std::array<float, 4>{0.0f, 0.0f, 0.0f, 0.0f});
+    RenderPassInfo.clearValueCount = 1;
+    RenderPassInfo.pClearValues = &ClearColor;
+
+    CommandBuffers[I]->beginRenderPass(
+        RenderPassInfo, vk::SubpassContents::eInline);
+
+    {
+      CommandBuffers[I]->bindPipeline(
+          vk::PipelineBindPoint::eGraphics, *GraphicsPipeline);
+
+      CommandBuffers[I]->draw(3, 1, 0, 0);
+    }
+
+    CommandBuffers[I]->endRenderPass();
+
+    Result = CommandBuffers[I]->end();
+    GUARD_RESULT(Result);
+  }
+
+  return vk::Result::eSuccess;
+}
+
+vk::Result Engine::setupSyncObjects() {
+
 }
 
 vk::ResultValue<uint32_t>
@@ -665,10 +743,18 @@ vk::Result Engine::initialize() {
   Result = setupFramebuffers();
   GUARD_RESULT(Result);
 
+  Result = setupCommandPool();
+  GUARD_RESULT(Result);
+
+  Result = setupCommandBuffers();
+  GUARD_RESULT(Result);
+
   return vk::Result::eSuccess;
 }
 
-void Engine::draw() {}
+void Engine::drawFrame() {
+
+}
 
 } // namespace engine
 } // namespace vkmol

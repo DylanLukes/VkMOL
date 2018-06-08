@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
   // 4.0 – Main loop!
   while (!glfwWindowShouldClose(Window)) {
     glfwPollEvents();
-    Engine.draw();
+    Engine.drawFrame();
   }
 
   glfwDestroyWindow(Window);
