@@ -126,11 +126,11 @@ private:
   vk::UniqueDescriptorPool DescriptorPool;
   vk::UniqueDescriptorSet DescriptorSet;
 
-  std::vector<vk::CommandBuffer> CommandBuffers;
+  std::vector<vk::UniqueCommandBuffer> CommandBuffers;
 
-  std::vector<vk::Semaphore> ImageAvailableSemaphores;
-  std::vector<vk::Semaphore> RenderFinishedSemaphores;
-  std::vector<vk::Fence> InFlightFences;
+  std::vector<vk::UniqueSemaphore> ImageAvailableSemaphores;
+  std::vector<vk::UniqueSemaphore> RenderFinishedSemaphores;
+  std::vector<vk::UniqueFence> InFlightFences;
 
   size_t CurrentFrame;
 
@@ -147,19 +147,19 @@ private:
 
   // Setup Routines
   // --------------
-  vk::Result setupInstance();
-  vk::Result setupSurface();
-  vk::Result setupDebugCallback();
-  vk::Result setupPhysicalDevice();
-  vk::Result setupLogicalDevice();
-  vk::Result setupSwapchain();
-  vk::Result setupImageViews();
-  vk::Result setupRenderPass();
-  vk::Result setupGraphicsPipeline();
-  vk::Result setupFramebuffers();
-  vk::Result setupCommandPool();
-  vk::Result setupCommandBuffers();
-  vk::Result setupSyncObjects();
+  vk::Result createInstance();
+  vk::Result createSurface();
+  vk::Result installDebugCallback();
+  vk::Result createPhysicalDevice();
+  vk::Result createLogicalDevice();
+  vk::Result createSwapchain();
+  vk::Result createImageViews();
+  vk::Result createRenderPass();
+  vk::Result createGraphicsPipeline();
+  vk::Result createFramebuffers();
+  vk::Result createCommandPool();
+  vk::Result createCommandBuffers();
+  vk::Result createSyncObjects();
 
   // Setup Utilities
   // ---------------

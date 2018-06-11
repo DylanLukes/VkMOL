@@ -52,15 +52,9 @@ Engine::Engine(EngineCreateInfo CreateInfo)
       RequiredDeviceExtensions.end());
 }
 
-Engine::~Engine() {
-  for (size_t I = 0; I < MaxFramesInFlight; ++I) {
-    Device->destroySemaphore(ImageAvailableSemaphores[I]);
-    Device->destroySemaphore(RenderFinishedSemaphores[I]);
-    Device->destroyFence(InFlightFences[I]);
-  }
-}
+Engine::~Engine() {}
 
-vk::Result Engine::setupInstance() {
+vk::Result Engine::createInstance() {
   vk::Result Result;
 
   vk::InstanceCreateInfo CreateInfo;
@@ -75,7 +69,7 @@ vk::Result Engine::setupInstance() {
   return Result;
 }
 
-vk::Result Engine::setupSurface() {
+vk::Result Engine::createSurface() {
   auto [Result, RawSurface] = SurfaceFactory(*Instance);
   GUARD_RESULT(Result);
 
@@ -86,7 +80,7 @@ vk::Result Engine::setupSurface() {
   return Result;
 }
 
-vk::Result Engine::setupDebugCallback() {
+vk::Result Engine::installDebugCallback() {
   vk::Result Result;
 
   if (ValidationLayers.empty()) {
@@ -99,7 +93,7 @@ vk::Result Engine::setupDebugCallback() {
   return Result;
 }
 
-vk::Result Engine::setupPhysicalDevice() {
+vk::Result Engine::createPhysicalDevice() {
   auto [EnumResult, Devices] = Instance->enumeratePhysicalDevices();
   GUARD_RESULT(EnumResult);
 
@@ -127,7 +121,7 @@ vk::Result Engine::setupPhysicalDevice() {
   return vk::Result::eSuccess;
 }
 
-vk::Result Engine::setupLogicalDevice() {
+vk::Result Engine::createLogicalDevice() {
   auto [Result, Indices] = queryQueueFamilies(PhysicalDevice);
   GUARD_RESULT(Result);
 
@@ -176,7 +170,7 @@ vk::Result Engine::setupLogicalDevice() {
   return vk::Result::eSuccess;
 }
 
-vk::Result Engine::setupSwapchain() {
+vk::Result Engine::createSwapchain() {
   vk::Result Result;
   vk::SwapchainCreateInfoKHR CreateInfo;
 
@@ -237,7 +231,7 @@ vk::Result Engine::setupSwapchain() {
   return vk::Result::eSuccess;
 }
 
-vk::Result Engine::setupImageViews() {
+vk::Result Engine::createImageViews() {
   vk::Result Result;
   SwapchainImageViews.resize(SwapchainImages.size());
 
@@ -264,7 +258,7 @@ vk::Result Engine::setupImageViews() {
   return vk::Result::eSuccess;
 }
 
-vk::Result Engine::setupRenderPass() {
+vk::Result Engine::createRenderPass() {
   vk::Result Result;
 
   vk::AttachmentDescription ColorAttachment;
@@ -308,7 +302,7 @@ vk::Result Engine::setupRenderPass() {
   return vk::Result::eSuccess;
 }
 
-vk::Result Engine::setupGraphicsPipeline() {
+vk::Result Engine::createGraphicsPipeline() {
   vk::Result Result;
   vk::UniqueShaderModule VertShaderModule, FragShaderModule;
 
@@ -436,7 +430,7 @@ vk::Result Engine::setupGraphicsPipeline() {
   return vk::Result::eSuccess;
 }
 
-vk::Result Engine::setupFramebuffers() {
+vk::Result Engine::createFramebuffers() {
   vk::Result Result;
   SwapchainFramebuffers.resize(SwapchainImageViews.size());
 
@@ -460,7 +454,7 @@ vk::Result Engine::setupFramebuffers() {
   return vk::Result::eSuccess;
 }
 
-vk::Result Engine::setupCommandPool() {
+vk::Result Engine::createCommandPool() {
   vk::Result Result;
   QueueFamilyIndices QueueFamilyIndices;
 
@@ -476,29 +470,37 @@ vk::Result Engine::setupCommandPool() {
   return vk::Result::eSuccess;
 }
 
-vk::Result Engine::setupCommandBuffers() {
+vk::Result Engine::createCommandBuffers() {
   vk::Result Result;
   vk::CommandBufferAllocateInfo AllocInfo;
 
-  CommandBuffers.resize(SwapchainFramebuffers.size());
+  auto BufferCount = SwapchainFramebuffers.size();
 
   AllocInfo.commandPool = *CommandPool;
   AllocInfo.level = vk::CommandBufferLevel::ePrimary;
-  AllocInfo.commandBufferCount = uint32_t(CommandBuffers.size());
+  AllocInfo.commandBufferCount = uint32_t(BufferCount);
 
   // Note: have to allocate and wrap in UniqueHandle manually here.
   // std::vector<vk::UniqueHandle<vk::T>> cannot be moved properly.
   std::vector<vk::CommandBuffer> Buffers;
-  std::tie(Result, CommandBuffers) = Device->allocateCommandBuffers(AllocInfo);
+  std::tie(Result, Buffers) = Device->allocateCommandBuffers(AllocInfo);
   GUARD_RESULT(Result);
 
-  for (size_t I = 0; I < CommandBuffers.size(); ++I) {
+  CommandBuffers.reserve(BufferCount);
+  vk::UniqueHandleTraits<vk::CommandBuffer>::deleter Deleter(
+      *Device, *CommandPool);
+
+  for (size_t I = 0; I < BufferCount; ++I) {
+    CommandBuffers.push_back(vk::UniqueCommandBuffer(Buffers[I], Deleter));
+  }
+
+  for (size_t I = 0; I < BufferCount; ++I) {
     vk::CommandBufferBeginInfo BeginInfo;
 
     BeginInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
     BeginInfo.pInheritanceInfo = nullptr;
 
-    Result = CommandBuffers[I].begin(BeginInfo);
+    Result = CommandBuffers[I]->begin(BeginInfo);
     GUARD_RESULT(Result);
 
     vk::RenderPassBeginInfo RenderPassInfo;
@@ -511,26 +513,24 @@ vk::Result Engine::setupCommandBuffers() {
     RenderPassInfo.clearValueCount = 1;
     RenderPassInfo.pClearValues = &ClearColor;
 
-    CommandBuffers[I].beginRenderPass(
+    CommandBuffers[I]->beginRenderPass(
         RenderPassInfo, vk::SubpassContents::eInline);
 
-
-    CommandBuffers[I].bindPipeline(
+    CommandBuffers[I]->bindPipeline(
         vk::PipelineBindPoint::eGraphics, *GraphicsPipeline);
 
-    CommandBuffers[I].draw(3, 1, 0, 0);
+    CommandBuffers[I]->draw(3, 1, 0, 0);
 
+    CommandBuffers[I]->endRenderPass();
 
-    CommandBuffers[I].endRenderPass();
-
-    Result = CommandBuffers[I].end();
+    Result = CommandBuffers[I]->end();
     GUARD_RESULT(Result);
   }
 
   return vk::Result::eSuccess;
 }
 
-vk::Result Engine::setupSyncObjects() {
+vk::Result Engine::createSyncObjects() {
   vk::Result Result;
   ImageAvailableSemaphores.resize(MaxFramesInFlight);
   RenderFinishedSemaphores.resize(MaxFramesInFlight);
@@ -542,14 +542,15 @@ vk::Result Engine::setupSyncObjects() {
 
   for (size_t I = 0; I < MaxFramesInFlight; ++I) {
     std::tie(Result, ImageAvailableSemaphores[I]) =
-        take(Device->createSemaphore(SemaphoreInfo));
+        take(Device->createSemaphoreUnique(SemaphoreInfo));
     GUARD_RESULT(Result);
 
     std::tie(Result, RenderFinishedSemaphores[I]) =
-        take(Device->createSemaphore(SemaphoreInfo));
+        take(Device->createSemaphoreUnique(SemaphoreInfo));
     GUARD_RESULT(Result);
 
-    std::tie(Result, InFlightFences[I]) = take(Device->createFence(FenceInfo));
+    std::tie(Result, InFlightFences[I]) =
+        take(Device->createFenceUnique(FenceInfo));
     GUARD_RESULT(Result);
   }
 
@@ -747,43 +748,43 @@ Engine::createShaderModule(const uint32_t *Code, size_t CodeSize) {
 vk::Result Engine::initialize() {
   vk::Result Result;
 
-  Result = setupInstance();
+  Result = createInstance();
   GUARD_RESULT(Result);
 
-  Result = setupSurface();
+  Result = createSurface();
   GUARD_RESULT(Result);
 
-  Result = setupDebugCallback();
+  Result = installDebugCallback();
   GUARD_RESULT(Result);
 
-  Result = setupPhysicalDevice();
+  Result = createPhysicalDevice();
   GUARD_RESULT(Result);
 
-  Result = setupLogicalDevice();
+  Result = createLogicalDevice();
   GUARD_RESULT(Result);
 
-  Result = setupSwapchain();
+  Result = createSwapchain();
   GUARD_RESULT(Result);
 
-  Result = setupImageViews();
+  Result = createImageViews();
   GUARD_RESULT(Result);
 
-  Result = setupRenderPass();
+  Result = createRenderPass();
   GUARD_RESULT(Result);
 
-  Result = setupGraphicsPipeline();
+  Result = createGraphicsPipeline();
   GUARD_RESULT(Result);
 
-  Result = setupFramebuffers();
+  Result = createFramebuffers();
   GUARD_RESULT(Result);
 
-  Result = setupCommandPool();
+  Result = createCommandPool();
   GUARD_RESULT(Result);
 
-  Result = setupCommandBuffers();
+  Result = createCommandBuffers();
   GUARD_RESULT(Result);
 
-  Result = setupSyncObjects();
+  Result = createSyncObjects();
   GUARD_RESULT(Result);
 
   return vk::Result::eSuccess;
@@ -794,23 +795,23 @@ vk::Result Engine::drawFrame() {
   auto MaxTimeOut = std::numeric_limits<uint64_t>::max();
 
   Result = Device->waitForFences(
-      1, &InFlightFences[CurrentFrame], VK_TRUE, MaxTimeOut);
+      1, &*InFlightFences[CurrentFrame], VK_TRUE, MaxTimeOut);
   GUARD_RESULT(Result);
 
-  Result = Device->resetFences(1, &InFlightFences[CurrentFrame]);
+  Result = Device->resetFences(1, &*InFlightFences[CurrentFrame]);
   GUARD_RESULT(Result);
 
   uint32_t ImageIndex;
   Result = Device->acquireNextImageKHR(
       *Swapchain,
       MaxTimeOut,
-      ImageAvailableSemaphores[CurrentFrame],
+      *ImageAvailableSemaphores[CurrentFrame],
       nullptr,
       &ImageIndex);
   GUARD_RESULT(Result);
 
   vk::SubmitInfo SubmitInfo;
-  vk::Semaphore WaitSemaphores[] = {ImageAvailableSemaphores[CurrentFrame]};
+  vk::Semaphore WaitSemaphores[] = {*ImageAvailableSemaphores[CurrentFrame]};
   vk::PipelineStageFlags WaitStages[] = {
       vk::PipelineStageFlagBits::eColorAttachmentOutput};
 
@@ -819,13 +820,13 @@ vk::Result Engine::drawFrame() {
   SubmitInfo.pWaitDstStageMask = WaitStages;
 
   SubmitInfo.commandBufferCount = 1;
-  SubmitInfo.pCommandBuffers = &CommandBuffers[ImageIndex];
+  SubmitInfo.pCommandBuffers = &*CommandBuffers[ImageIndex];
 
-  vk::Semaphore SignalSemaphores[] = {RenderFinishedSemaphores[CurrentFrame]};
+  vk::Semaphore SignalSemaphores[] = {*RenderFinishedSemaphores[CurrentFrame]};
   SubmitInfo.signalSemaphoreCount = 1;
   SubmitInfo.pSignalSemaphores = SignalSemaphores;
 
-  Result = GraphicsQueue.submit(1, &SubmitInfo, InFlightFences[CurrentFrame]);
+  Result = GraphicsQueue.submit(1, &SubmitInfo, *InFlightFences[CurrentFrame]);
   GUARD_RESULT(Result);
 
   vk::PresentInfoKHR PresentInfo;
@@ -843,9 +844,7 @@ vk::Result Engine::drawFrame() {
   return vk::Result::eSuccess;
 }
 
-vk::Result Engine::waitIdle() {
-  return Device->waitIdle();
-}
+vk::Result Engine::waitIdle() { return Device->waitIdle(); }
 
 } // namespace engine
 } // namespace vkmol
