@@ -75,6 +75,8 @@ private:
   static const std::vector<const char *> RequiredInstanceExtensions;
   static const std::vector<const char *> RequiredDeviceExtensions;
 
+  static const int MaxFramesInFlight = 3;
+
   // Engine State
   // ------------
 
@@ -124,11 +126,11 @@ private:
   vk::UniqueDescriptorPool DescriptorPool;
   vk::UniqueDescriptorSet DescriptorSet;
 
-  std::vector<vk::UniqueCommandBuffer> CommandBuffers;
+  std::vector<vk::CommandBuffer> CommandBuffers;
 
-  std::vector<vk::UniqueSemaphore> ImageAvailableSemaphores;
-  std::vector<vk::UniqueSemaphore> RenderFinishedSemaphores;
-  std::vector<vk::UniqueFence> InFlightFences;
+  std::vector<vk::Semaphore> ImageAvailableSemaphores;
+  std::vector<vk::Semaphore> RenderFinishedSemaphores;
+  std::vector<vk::Fence> InFlightFences;
 
   size_t CurrentFrame;
 
@@ -204,8 +206,8 @@ public:
   ~Engine();
 
   vk::Result initialize();
-
-  void drawFrame();
+  vk::Result drawFrame();
+  vk::Result waitIdle();
 };
 
 } // namespace engine

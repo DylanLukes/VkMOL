@@ -27,8 +27,11 @@ add_definitions(-DVULKAN_HPP_NO_EXCEPTIONS)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
 
-target_link_libraries(vkmol
-    Vulkan::Vulkan)
+target_link_libraries(vkmol Vulkan::Vulkan)
+
+if(APPLE)
+    target_link_libraries(vkmol MoltenVK)
+endif()
 
 install(TARGETS vkmol EXPORT VkMOLConfig
     ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}

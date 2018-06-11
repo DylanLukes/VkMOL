@@ -81,5 +81,8 @@ int main(int argc, char **argv) {
     Engine.drawFrame();
   }
 
+  // 5.0 – Let everything finish up.
+  Engine.waitIdle();
+
   glfwDestroyWindow(Window);
 }
