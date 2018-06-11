@@ -474,11 +474,9 @@ vk::Result Engine::createCommandBuffers() {
   vk::Result Result;
   vk::CommandBufferAllocateInfo AllocInfo;
 
-  auto BufferCount = SwapchainFramebuffers.size();
-
   AllocInfo.commandPool = *CommandPool;
   AllocInfo.level = vk::CommandBufferLevel::ePrimary;
-  AllocInfo.commandBufferCount = uint32_t(BufferCount);
+  AllocInfo.commandBufferCount = uint32_t(SwapchainFramebuffers.size());
 
   // Note: have to allocate and wrap in UniqueHandle manually here.
   // std::vector<vk::UniqueHandle<vk::T>> cannot be moved properly.
@@ -486,15 +484,15 @@ vk::Result Engine::createCommandBuffers() {
   std::tie(Result, Buffers) = Device->allocateCommandBuffers(AllocInfo);
   GUARD_RESULT(Result);
 
-  CommandBuffers.reserve(BufferCount);
+  CommandBuffers.reserve(SwapchainFramebuffers.size());
   vk::UniqueHandleTraits<vk::CommandBuffer>::deleter Deleter(
       *Device, *CommandPool);
 
-  for (size_t I = 0; I < BufferCount; ++I) {
+  for (size_t I = 0; I < SwapchainFramebuffers.size(); ++I) {
     CommandBuffers.push_back(vk::UniqueCommandBuffer(Buffers[I], Deleter));
   }
 
-  for (size_t I = 0; I < BufferCount; ++I) {
+  for (size_t I = 0; I < CommandBuffers.size(); ++I) {
     vk::CommandBufferBeginInfo BeginInfo;
 
     BeginInfo.flags = vk::CommandBufferUsageFlagBits::eSimultaneousUse;
@@ -705,9 +703,10 @@ Engine::choosePresentMode(const std::vector<vk::PresentModeKHR> &Modes) {
   for (const auto &Mode : Modes) {
     if (Mode == vk::PresentModeKHR::eMailbox) {
       return Mode;
-    } else if (Mode == vk::PresentModeKHR::eImmediate) {
-      PreferredMode = Mode;
     }
+//    else if (Mode == vk::PresentModeKHR::eImmediate) {
+//      PreferredMode = Mode;
+//    }
   }
 
   return PreferredMode;

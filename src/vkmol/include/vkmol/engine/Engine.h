@@ -75,7 +75,7 @@ private:
   static const std::vector<const char *> RequiredInstanceExtensions;
   static const std::vector<const char *> RequiredDeviceExtensions;
 
-  static const int MaxFramesInFlight = 3;
+  static const int MaxFramesInFlight = 2;
 
   // Engine State
   // ------------
