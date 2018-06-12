@@ -204,12 +204,19 @@ private:
   createShaderModule(const uint32_t *Code, size_t CodeSize);
 
   vk::ResultValue<uint32_t> queryMemoryType(uint32_t TypeFilter,
-                           vk::MemoryPropertyFlags Properties);
+                                            vk::MemoryPropertyFlags Properties);
 
   // Other:
   // -----
 
   vk::Result recreateSwapchain();
+
+  vk::ResultValue<std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory>>
+  createBuffer(vk::DeviceSize Size,
+               vk::BufferUsageFlags UsageFlags,
+               vk::MemoryPropertyFlags MemoryFlags);
+  vk::Result
+  copyBuffer(vk::Buffer SrcBuffer, vk::Buffer DstBuffer, vk::DeviceSize Size);
 
 public:
   Engine(EngineCreateInfo CreateInfo);

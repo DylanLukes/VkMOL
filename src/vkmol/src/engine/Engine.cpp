@@ -473,39 +473,36 @@ vk::Result Engine::createFramebuffers() {
 
 vk::Result Engine::createVertexBuffer() {
   vk::Result Result;
+  vk::DeviceSize BufferSize = sizeof(TestVertices[0]) * TestVertices.size();
 
-  vk::BufferCreateInfo BufferInfo;
-  BufferInfo.size = sizeof(TestVertices[0]) * TestVertices.size();
-  BufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer;
-  BufferInfo.sharingMode = vk::SharingMode::eExclusive;
-
-  std::tie(Result, VertexBuffer) = take(Device->createBufferUnique(BufferInfo));
-  VKMOL_GUARD(Result);
-
-  auto MemRequirements = Device->getBufferMemoryRequirements(*VertexBuffer);
-
-  uint32_t MemoryTypeIndex;
-  std::tie(Result, MemoryTypeIndex) =
-      queryMemoryType(MemRequirements.memoryTypeBits,
-                      vk::MemoryPropertyFlagBits::eHostVisible |
-                          vk::MemoryPropertyFlagBits::eHostCoherent);
-  VKMOL_GUARD(Result);
-
-  vk::MemoryAllocateInfo AllocInfo;
-  AllocInfo.allocationSize = MemRequirements.size;
-  AllocInfo.memoryTypeIndex = MemoryTypeIndex;
-
-  std::tie(Result, VertexBufferMemory) =
-      take(Device->allocateMemoryUnique(AllocInfo));
-  VKMOL_GUARD(Result);
-
-  Device->bindBufferMemory(*VertexBuffer, *VertexBufferMemory, 0);
+  std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory> StagingBufferAlloc;
+  std::tie(Result, StagingBufferAlloc) =
+      take(createBuffer(BufferSize,
+                        vk::BufferUsageFlagBits::eTransferSrc,
+                        vk::MemoryPropertyFlagBits::eHostVisible |
+                            vk::MemoryPropertyFlagBits::eHostCoherent));
 
   void *Data;
-  vk::MemoryMapFlags MapFlags;
-  Device->mapMemory(*VertexBufferMemory, 0, BufferInfo.size, MapFlags, &Data);
-  memcpy(Data, TestVertices.data(), size_t(BufferInfo.size));
-  Device->unmapMemory(*VertexBufferMemory);
+  Device->mapMemory(*std::get<1>(StagingBufferAlloc),
+                    0,
+                    BufferSize,
+                    vk::MemoryMapFlags(),
+                    &Data);
+  memcpy(Data, TestVertices.data(), size_t(BufferSize));
+  Device->unmapMemory(*std::get<1>(StagingBufferAlloc));
+
+  std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory> VertexBufferAlloc;
+  std::tie(Result, VertexBufferAlloc) =
+      take(createBuffer(BufferSize,
+                        vk::BufferUsageFlagBits::eTransferDst |
+                            vk::BufferUsageFlagBits::eVertexBuffer,
+                        vk::MemoryPropertyFlagBits::eDeviceLocal));
+
+  this->VertexBuffer = std::move(std::get<0>(VertexBufferAlloc));
+  this->VertexBufferMemory = std::move(std::get<1>(VertexBufferAlloc));
+
+  Result =
+      copyBuffer(*std::get<0>(StagingBufferAlloc), *VertexBuffer, BufferSize);
 
   return vk::Result::eSuccess;
 }
@@ -819,6 +816,83 @@ Engine::queryMemoryType(uint32_t TypeFilter,
   }
 
   return {vk::Result::eErrorOutOfDeviceMemory, 0}; // todo: not the right error
+}
+
+vk::ResultValue<std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory>>
+Engine::createBuffer(vk::DeviceSize Size,
+                     vk::BufferUsageFlags UsageFlags,
+                     vk::MemoryPropertyFlags MemoryFlags) {
+  vk::Result Result;
+  std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory> BufferMemory;
+
+  vk::BufferCreateInfo BufferInfo;
+  BufferInfo.size = Size;
+  BufferInfo.usage = UsageFlags;
+  BufferInfo.sharingMode = vk::SharingMode::eExclusive;
+
+  std::tie(Result, std::get<0>(BufferMemory)) =
+      take(Device->createBufferUnique(BufferInfo));
+  VKMOL_GUARD_VALUE(Result, std::move(BufferMemory));
+
+  auto MemRequirements =
+      Device->getBufferMemoryRequirements(*std::get<0>(BufferMemory));
+
+  uint32_t MemoryTypeIndex;
+  std::tie(Result, MemoryTypeIndex) =
+      queryMemoryType(MemRequirements.memoryTypeBits, MemoryFlags);
+  VKMOL_GUARD_VALUE(Result, std::move(BufferMemory));
+
+  vk::MemoryAllocateInfo AllocInfo;
+  AllocInfo.allocationSize = MemRequirements.size;
+  AllocInfo.memoryTypeIndex = MemoryTypeIndex;
+
+  std::tie(Result, std::get<1>(BufferMemory)) =
+      take(Device->allocateMemoryUnique(AllocInfo));
+  VKMOL_GUARD_VALUE(Result, std::move(BufferMemory));
+
+  Device->bindBufferMemory(
+      *std::get<0>(BufferMemory), *std::get<1>(BufferMemory), 0);
+
+  return {vk::Result::eSuccess, std::move(BufferMemory)};
+}
+
+vk::Result Engine::copyBuffer(vk::Buffer SrcBuffer,
+                              vk::Buffer DstBuffer,
+                              vk::DeviceSize Size) {
+  vk::Result Result;
+
+  vk::CommandBufferAllocateInfo AllocInfo;
+  AllocInfo.level = vk::CommandBufferLevel::ePrimary;
+  AllocInfo.commandPool = *CommandPool;
+  AllocInfo.commandBufferCount = 1;
+
+  std::vector<vk::CommandBuffer> RawBuffers;
+  vk::UniqueHandleTraits<vk::CommandBuffer>::deleter Deleter(*Device,
+                                                             *CommandPool);
+  std::tie(Result, RawBuffers) =
+      take(Device->allocateCommandBuffers(AllocInfo));
+  VKMOL_GUARD(Result);
+  vk::UniqueCommandBuffer CommandBuffer(RawBuffers.front(), Deleter);
+
+  vk::CommandBufferBeginInfo BeginInfo;
+  BeginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+
+  CommandBuffer->begin(BeginInfo);
+
+  vk::BufferCopy CopyRegion;
+  CopyRegion.size = Size;
+  CommandBuffer->copyBuffer(SrcBuffer, DstBuffer, 1, &CopyRegion);
+
+  CommandBuffer->end();
+
+  vk::SubmitInfo SubmitInfo;
+  SubmitInfo.commandBufferCount = 1;
+  SubmitInfo.pCommandBuffers = &*CommandBuffer;
+
+  GraphicsQueue.submit(1, &SubmitInfo, nullptr);
+  GraphicsQueue.waitIdle();
+
+  return vk::Result::eSuccess;
 }
 
 vk::Result Engine::recreateSwapchain() {
