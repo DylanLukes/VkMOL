@@ -3,13 +3,8 @@
 
 #include <vulkan/vulkan.hpp>
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-
 #include <algorithm>
 #include <array>
-#include <chrono>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
@@ -155,10 +150,14 @@ private:
   vk::Result createSwapchain();
   vk::Result createImageViews();
   vk::Result createRenderPass();
+  vk::Result createDescriptorSetLayout();
   vk::Result createGraphicsPipeline();
   vk::Result createFramebuffers();
   vk::Result createVertexBuffer();
   vk::Result createIndexBuffer();
+  vk::Result createUniformBuffer();
+  vk::Result createDescriptorPool();
+  vk::Result createDescriptorSet();
   vk::Result createCommandPool();
   vk::Result createCommandBuffers();
   vk::Result createSyncObjects();
@@ -217,6 +216,8 @@ private:
                vk::MemoryPropertyFlags MemoryFlags);
   vk::Result
   copyBuffer(vk::Buffer SrcBuffer, vk::Buffer DstBuffer, vk::DeviceSize Size);
+
+  void updateUniformBuffer();
 
 public:
   Engine(EngineCreateInfo CreateInfo);

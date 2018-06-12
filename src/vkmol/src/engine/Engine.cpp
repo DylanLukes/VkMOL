@@ -4,6 +4,10 @@
 #include <MoltenVK/vk_mvk_moltenvk.h>
 #endif
 
+#define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#include <glm/glm.hpp>
+
 #include "../shaders/Shaders.h"
 #include "./Utilities.h"
 #include <vkmol/Debug.h>
@@ -12,6 +16,7 @@
 #include <vkmol/engine/Vertex.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <map>
 #include <utility>
@@ -19,16 +24,12 @@
 namespace vkmol {
 namespace engine {
 
-const std::vector<Vertex> Vertices = {
-    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
-    {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
-};
+const std::vector<Vertex> Vertices = {{{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+                                      {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+                                      {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+                                      {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}};
 
-const std::vector<uint16_t> Indices = {
-    0, 1, 2, 2, 3, 0
-};
+const std::vector<uint16_t> Indices = {0, 1, 2, 2, 3, 0};
 
 const std::vector<const char *> Engine::RequiredInstanceExtensions = {};
 
@@ -317,14 +318,34 @@ vk::Result Engine::createRenderPass() {
   return vk::Result::eSuccess;
 }
 
+vk::Result Engine::createDescriptorSetLayout() {
+  vk::Result Result;
+
+  vk::DescriptorSetLayoutBinding UBOLayoutBinding;
+  UBOLayoutBinding.binding = 0;
+  UBOLayoutBinding.descriptorCount = 1;
+  UBOLayoutBinding.descriptorType = vk::DescriptorType::eUniformBuffer;
+  UBOLayoutBinding.pImmutableSamplers = nullptr;
+  UBOLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
+
+  vk::DescriptorSetLayoutCreateInfo LayoutInfo;
+  LayoutInfo.bindingCount = 1;
+  LayoutInfo.pBindings = &UBOLayoutBinding;
+
+  std::tie(Result, DescriptorSetLayout) =
+      take(Device->createDescriptorSetLayoutUnique(LayoutInfo));
+
+  return vk::Result::eSuccess;
+}
+
 vk::Result Engine::createGraphicsPipeline() {
   vk::Result Result;
   vk::UniqueShaderModule VertShaderModule, FragShaderModule;
 
   auto VertShaderCode = vkmol::shaders::V1VertSPIRV;
-  auto VertShaderSize = sizeof(vkmol::shaders::V1VertSPIRV);
+  auto VertShaderSize = sizeof(vkmol::shaders::V2VertSPIRV);
   auto FragShaderCode = vkmol::shaders::V1FragSPIRV;
-  auto FragShaderSize = sizeof(vkmol::shaders::V1FragSPIRV);
+  auto FragShaderSize = sizeof(vkmol::shaders::V2FragSPIRV);
 
   std::tie(Result, VertShaderModule) =
       take(createShaderModule(VertShaderCode, VertShaderSize));
@@ -385,7 +406,7 @@ vk::Result Engine::createGraphicsPipeline() {
   RasterizationInfo.polygonMode = vk::PolygonMode::eFill;
   RasterizationInfo.lineWidth = 1.0f;
   RasterizationInfo.cullMode = vk::CullModeFlagBits::eBack;
-  RasterizationInfo.frontFace = vk::FrontFace::eClockwise;
+  RasterizationInfo.frontFace = vk::FrontFace::eCounterClockwise;
   RasterizationInfo.depthBiasEnable = VK_FALSE;
 
   vk::PipelineMultisampleStateCreateInfo MultisampleInfo;
@@ -421,8 +442,8 @@ vk::Result Engine::createGraphicsPipeline() {
   ColorBlendInfo.blendConstants[3] = 0.0f;
 
   vk::PipelineLayoutCreateInfo PipelineLayoutInfo;
-  PipelineLayoutInfo.setLayoutCount = 0;
-  PipelineLayoutInfo.pSetLayouts = nullptr;
+  PipelineLayoutInfo.setLayoutCount = 1;
+  PipelineLayoutInfo.pSetLayouts = &*DescriptorSetLayout;
   PipelineLayoutInfo.pushConstantRangeCount = 0;
   PipelineLayoutInfo.pPushConstantRanges = nullptr;
 
@@ -523,7 +544,7 @@ vk::Result Engine::createIndexBuffer() {
       take(createBuffer(BufferSize,
                         vk::BufferUsageFlagBits::eTransferSrc,
                         vk::MemoryPropertyFlagBits::eHostVisible |
-                        vk::MemoryPropertyFlagBits::eHostCoherent));
+                            vk::MemoryPropertyFlagBits::eHostCoherent));
 
   void *Data;
   Device->mapMemory(*std::get<1>(StagingBufferAlloc),
@@ -538,16 +559,89 @@ vk::Result Engine::createIndexBuffer() {
   std::tie(Result, IndexBufferAlloc) =
       take(createBuffer(BufferSize,
                         vk::BufferUsageFlagBits::eTransferDst |
-                        vk::BufferUsageFlagBits::eIndexBuffer,
+                            vk::BufferUsageFlagBits::eIndexBuffer,
                         vk::MemoryPropertyFlagBits::eDeviceLocal));
-
-
 
   this->IndexBuffer = std::move(std::get<0>(IndexBufferAlloc));
   this->IndexBufferMemory = std::move(std::get<1>(IndexBufferAlloc));
 
   Result =
       copyBuffer(*std::get<0>(StagingBufferAlloc), *IndexBuffer, BufferSize);
+
+  return vk::Result::eSuccess;
+}
+
+vk::Result Engine::createUniformBuffer() {
+  vk::Result Result;
+
+  vk::DeviceSize BufferSize = sizeof(UniformBufferObject);
+
+  std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory> UniformBufferAlloc;
+  std::tie(Result, UniformBufferAlloc) =
+      take(createBuffer(BufferSize,
+                        vk::BufferUsageFlagBits::eUniformBuffer,
+                        vk::MemoryPropertyFlagBits::eHostVisible |
+                            vk::MemoryPropertyFlagBits::eHostCoherent));
+
+  this->UniformBuffer = std::move(std::get<0>(UniformBufferAlloc));
+  this->UniformBufferMemory = std::move(std::get<1>(UniformBufferAlloc));
+
+  return vk::Result::eSuccess;
+}
+
+vk::Result Engine::createDescriptorPool() {
+  vk::Result Result;
+
+  vk::DescriptorPoolSize PoolSize;
+  PoolSize.type = vk::DescriptorType::eUniformBuffer;
+  PoolSize.descriptorCount = 1;
+
+  vk::DescriptorPoolCreateInfo PoolInfo;
+  // PoolInfo.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
+  PoolInfo.poolSizeCount = 1;
+  PoolInfo.pPoolSizes = &PoolSize;
+  PoolInfo.maxSets = 1;
+
+  std::tie(Result, DescriptorPool) =
+      take(Device->createDescriptorPoolUnique(PoolInfo));
+  VKMOL_GUARD(Result);
+
+  return vk::Result::eSuccess;
+}
+
+vk::Result Engine::createDescriptorSet() {
+  vk::Result Result;
+
+  vk::DescriptorSetLayout Layouts[] = {*DescriptorSetLayout};
+  vk::DescriptorSetAllocateInfo AllocInfo;
+  AllocInfo.descriptorPool = *DescriptorPool;
+  AllocInfo.descriptorSetCount = 1;
+  AllocInfo.pSetLayouts = Layouts;
+
+  std::vector<vk::DescriptorSet> RawDescriptorSets;
+  std::tie(Result, RawDescriptorSets) =
+      take(Device->allocateDescriptorSets(AllocInfo));
+  VKMOL_GUARD(Result);
+
+  auto Deleter = vk::UniqueHandleTraits<vk::DescriptorSet>::deleter(
+      *Device, *DescriptorPool);
+
+  DescriptorSet = vk::UniqueDescriptorSet(RawDescriptorSets.front(), Deleter);
+
+  vk::DescriptorBufferInfo BufferInfo;
+  BufferInfo.buffer = *UniformBuffer;
+  BufferInfo.offset = 0;
+  BufferInfo.range = sizeof(UniformBufferObject);
+
+  vk::WriteDescriptorSet DescriptorWrite;
+  DescriptorWrite.dstSet = *DescriptorSet;
+  DescriptorWrite.dstBinding = 0;
+  DescriptorWrite.dstArrayElement = 0;
+  DescriptorWrite.descriptorType = vk::DescriptorType::eUniformBuffer;
+  DescriptorWrite.descriptorCount = 1;
+  DescriptorWrite.pBufferInfo = &BufferInfo;
+
+  Device->updateDescriptorSets(1, &DescriptorWrite, 0, nullptr);
 
   return vk::Result::eSuccess;
 }
@@ -619,6 +713,13 @@ vk::Result Engine::createCommandBuffers() {
     vk::DeviceSize Offsets[] = {0};
     CommandBuffers[I]->bindVertexBuffers(0, 1, VertexBuffers, Offsets);
     CommandBuffers[I]->bindIndexBuffer(*IndexBuffer, 0, vk::IndexType::eUint16);
+    CommandBuffers[I]->bindDescriptorSets(vk::PipelineBindPoint::eGraphics,
+                                          *PipelineLayout,
+                                          0,
+                                          1,
+                                          &*DescriptorSet,
+                                          0,
+                                          nullptr);
 
     CommandBuffers[I]->drawIndexed(uint32_t(Indices.size()), 1, 0, 0, 0);
 
@@ -939,6 +1040,34 @@ vk::Result Engine::copyBuffer(vk::Buffer SrcBuffer,
   return vk::Result::eSuccess;
 }
 
+void Engine::updateUniformBuffer() {
+  static auto StartTime = std::chrono::high_resolution_clock::now();
+
+  auto CurrentTime = std::chrono::high_resolution_clock::now();
+  float Time = std::chrono::duration<float, std::chrono::seconds::period>(
+                   CurrentTime - StartTime)
+                   .count();
+
+  UniformBufferObject UBO;
+  UBO.Model = glm::rotate(
+      glm::mat4(1.0f), Time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+  UBO.View = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
+                         glm::vec3(0.0f, 0.0f, 0.0f),
+                         glm::vec3(0.0f, 0.0f, 1.0f));
+  UBO.Projection =
+      glm::perspective(glm::radians(45.0f),
+                       SwapchainExtent.width / (float)SwapchainExtent.height,
+                       0.1f,
+                       10.0f);
+  UBO.Projection[1][1] *= -1;
+
+  void *Data;
+  Device->mapMemory(
+      *UniformBufferMemory, 0, sizeof(UBO), vk::MemoryMapFlags(), &Data);
+  memcpy(Data, &UBO, sizeof(UBO));
+  Device->unmapMemory(*UniformBufferMemory);
+}
+
 vk::Result Engine::recreateSwapchain() {
   printf("%s\n", "Recreating swapchain...");
 
@@ -993,6 +1122,9 @@ vk::Result Engine::initialize() {
   Result = createRenderPass();
   VKMOL_GUARD(Result);
 
+  Result = createDescriptorSetLayout();
+  VKMOL_GUARD(Result);
+
   Result = createGraphicsPipeline();
   VKMOL_GUARD(Result);
 
@@ -1008,6 +1140,15 @@ vk::Result Engine::initialize() {
   Result = createIndexBuffer();
   VKMOL_GUARD(Result);
 
+  Result = createUniformBuffer();
+  VKMOL_GUARD(Result);
+
+  Result = createDescriptorPool();
+  VKMOL_GUARD(Result);
+
+  Result = createDescriptorSet();
+  VKMOL_GUARD(Result);
+
   Result = createCommandBuffers();
   VKMOL_GUARD(Result);
 
@@ -1018,6 +1159,8 @@ vk::Result Engine::initialize() {
 }
 
 vk::Result Engine::drawFrame() {
+  updateUniformBuffer();
+
   vk::Result Result;
   auto MaxTimeOut = std::numeric_limits<uint64_t>::max();
 
