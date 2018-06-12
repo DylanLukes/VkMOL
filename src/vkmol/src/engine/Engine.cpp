@@ -8,6 +8,8 @@
 #include "./Utilities.h"
 #include <vkmol/Debug.h>
 #include <vkmol/engine/Engine.h>
+#include <vkmol/engine/Uniform.h>
+#include <vkmol/engine/Vertex.h>
 
 #include <algorithm>
 #include <cstdint>
@@ -17,39 +19,40 @@
 namespace vkmol {
 namespace engine {
 
+const std::vector<Vertex> TestVertices = {{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+                                          {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
+                                          {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
+
 const std::vector<const char *> Engine::RequiredInstanceExtensions = {};
 
 const std::vector<const char *> Engine::RequiredDeviceExtensions = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
 Engine::Engine(EngineCreateInfo CreateInfo)
-    : ApplicationInfo(
-          CreateInfo.AppName,
-          CreateInfo.AppVersion,
-          VKMOL_ENGINE_NAME,
-          VKMOL_ENGINE_VERSION,
-          VK_API_VERSION_1_0),
+    : ApplicationInfo(CreateInfo.AppName,
+                      CreateInfo.AppVersion,
+                      VKMOL_ENGINE_NAME,
+                      VKMOL_ENGINE_VERSION,
+                      VK_API_VERSION_1_0),
       InstanceExtensions(std::move(CreateInfo.InstanceExtensions)),
       DeviceExtensions(std::move(CreateInfo.DeviceExtensions)),
       ValidationLayers(std::move(CreateInfo.ValidationLayers)),
       SurfaceFactory(std::move(CreateInfo.SurfaceFactory)),
       GetWindowSize(std::move(CreateInfo.WindowSizeCallback)) {
 
-  InstanceExtensions.reserve(
-      InstanceExtensions.size() + RequiredInstanceExtensions.size());
+  InstanceExtensions.reserve(InstanceExtensions.size() +
+                             RequiredInstanceExtensions.size());
 
-  InstanceExtensions.insert(
-      InstanceExtensions.end(),
-      RequiredInstanceExtensions.begin(),
-      RequiredInstanceExtensions.end());
+  InstanceExtensions.insert(InstanceExtensions.end(),
+                            RequiredInstanceExtensions.begin(),
+                            RequiredInstanceExtensions.end());
 
-  DeviceExtensions.reserve(
-      DeviceExtensions.size() + RequiredDeviceExtensions.size());
+  DeviceExtensions.reserve(DeviceExtensions.size() +
+                           RequiredDeviceExtensions.size());
 
-  DeviceExtensions.insert(
-      DeviceExtensions.end(),
-      RequiredDeviceExtensions.begin(),
-      RequiredDeviceExtensions.end());
+  DeviceExtensions.insert(DeviceExtensions.end(),
+                          RequiredDeviceExtensions.begin(),
+                          RequiredDeviceExtensions.end());
 }
 
 Engine::~Engine() {}
@@ -71,7 +74,7 @@ vk::Result Engine::createInstance() {
 
 vk::Result Engine::createSurface() {
   auto [Result, RawSurface] = SurfaceFactory(*Instance);
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   // Ensure the Surface is associated with the correct owner.
   auto Deleter = vk::UniqueHandleTraits<vk::SurfaceKHR>::deleter(*Instance);
@@ -94,8 +97,11 @@ vk::Result Engine::installDebugCallback() {
 }
 
 vk::Result Engine::createPhysicalDevice() {
-  auto [EnumResult, Devices] = Instance->enumeratePhysicalDevices();
-  GUARD_RESULT(EnumResult);
+  vk::Result Result;
+  std::vector<vk::PhysicalDevice> Devices;
+
+  std::tie(Result, Devices) = Instance->enumeratePhysicalDevices();
+  VKMOL_GUARD(Result);
 
   if (Devices.empty()) {
     return vk::Result::eErrorInitializationFailed;
@@ -104,8 +110,9 @@ vk::Result Engine::createPhysicalDevice() {
   std::multimap<int, vk::PhysicalDevice> Candidates;
 
   for (const auto &Device : Devices) {
-    auto [ScoreResult, Score] = scoreDevice(Device);
-    GUARD_RESULT(ScoreResult);
+    uint32_t Score;
+    std::tie(Result, Score) = scoreDevice(Device);
+    VKMOL_GUARD(Result);
 
     Candidates.insert({Score, Device});
   }
@@ -123,7 +130,7 @@ vk::Result Engine::createPhysicalDevice() {
 
 vk::Result Engine::createLogicalDevice() {
   auto [Result, Indices] = queryQueueFamilies(PhysicalDevice);
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   std::vector<vk::DeviceQueueCreateInfo> QueueCreateInfos;
   std::set<int> UniqueQueueFamilies = {Indices.GraphicsFamilyIndex,
@@ -142,18 +149,17 @@ vk::Result Engine::createLogicalDevice() {
 
   vk::PhysicalDeviceFeatures DeviceFeatures;
 
-  vk::DeviceCreateInfo CreateInfo(
-      vk::DeviceCreateFlags(),
-      uint32_t(QueueCreateInfos.size()),
-      QueueCreateInfos.data(),
-      uint32_t(ValidationLayers.size()),
-      ValidationLayers.data(),
-      uint32_t(DeviceExtensions.size()),
-      DeviceExtensions.data());
+  vk::DeviceCreateInfo CreateInfo(vk::DeviceCreateFlags(),
+                                  uint32_t(QueueCreateInfos.size()),
+                                  QueueCreateInfos.data(),
+                                  uint32_t(ValidationLayers.size()),
+                                  ValidationLayers.data(),
+                                  uint32_t(DeviceExtensions.size()),
+                                  DeviceExtensions.data());
 
   std::tie(Result, Device) =
       take(PhysicalDevice.createDeviceUnique(CreateInfo));
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   GraphicsQueue =
       Device->getQueue(static_cast<uint32_t>(Indices.GraphicsFamilyIndex), 0);
@@ -164,6 +170,8 @@ vk::Result Engine::createLogicalDevice() {
   MVKDeviceConfiguration MVKConfig;
   vkGetMoltenVKDeviceConfigurationMVK(*Device, &MVKConfig);
   MVKConfig.debugMode = VK_TRUE;
+  MVKConfig.performanceTracking = VK_TRUE;
+  MVKConfig.performanceLoggingFrameCount = 300;
   vkSetMoltenVKDeviceConfigurationMVK(*Device, &MVKConfig);
 #endif
 
@@ -176,7 +184,7 @@ vk::Result Engine::createSwapchain() {
 
   SwapchainSupportDetails SwapchainSupport;
   std::tie(Result, SwapchainSupport) = querySwapchainSupport(PhysicalDevice);
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   auto SurfaceFormat = chooseSurfaceFormat(SwapchainSupport.Formats);
   auto PresentMode = choosePresentMode(SwapchainSupport.PresentModes);
@@ -191,7 +199,7 @@ vk::Result Engine::createSwapchain() {
 
   QueueFamilyIndices Indices;
   std::tie(Result, Indices) = queryQueueFamilies(PhysicalDevice);
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
   std::vector<uint32_t> QueueFamilyIndices(Indices);
 
   CreateInfo.surface = *Surface;
@@ -220,10 +228,10 @@ vk::Result Engine::createSwapchain() {
 
   std::tie(Result, Swapchain) =
       take(Device->createSwapchainKHRUnique(CreateInfo));
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   std::tie(Result, SwapchainImages) = Device->getSwapchainImagesKHR(*Swapchain);
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   SwapchainImageFormat = SurfaceFormat.format;
   SwapchainExtent = Extent;
@@ -252,7 +260,7 @@ vk::Result Engine::createImageViews() {
 
     std::tie(Result, SwapchainImageViews[I]) =
         take(Device->createImageViewUnique(CreateInfo));
-    GUARD_RESULT(Result);
+    VKMOL_GUARD(Result);
   }
 
   return vk::Result::eSuccess;
@@ -297,7 +305,7 @@ vk::Result Engine::createRenderPass() {
 
   std::tie(Result, RenderPass) =
       take(Device->createRenderPassUnique(RenderPassInfo));
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   return vk::Result::eSuccess;
 }
@@ -306,13 +314,18 @@ vk::Result Engine::createGraphicsPipeline() {
   vk::Result Result;
   vk::UniqueShaderModule VertShaderModule, FragShaderModule;
 
-  std::tie(Result, VertShaderModule) = take(createShaderModule(
-      vkmol::shaders::VertSPIRV, sizeof(vkmol::shaders::VertSPIRV)));
-  GUARD_RESULT(Result);
+  auto VertShaderCode = vkmol::shaders::V1VertSPIRV;
+  auto VertShaderSize = sizeof(vkmol::shaders::V1VertSPIRV);
+  auto FragShaderCode = vkmol::shaders::V1FragSPIRV;
+  auto FragShaderSize = sizeof(vkmol::shaders::V1FragSPIRV);
 
-  std::tie(Result, FragShaderModule) = take(createShaderModule(
-      vkmol::shaders::FragSPIRV, sizeof(vkmol::shaders::FragSPIRV)));
-  GUARD_RESULT(Result);
+  std::tie(Result, VertShaderModule) =
+      take(createShaderModule(VertShaderCode, VertShaderSize));
+  VKMOL_GUARD(Result);
+
+  std::tie(Result, FragShaderModule) =
+      take(createShaderModule(FragShaderCode, FragShaderSize));
+  VKMOL_GUARD(Result);
 
   vk::PipelineShaderStageCreateInfo VertShaderStageInfo;
   VertShaderStageInfo.stage = vk::ShaderStageFlagBits::eVertex;
@@ -327,11 +340,15 @@ vk::Result Engine::createGraphicsPipeline() {
   vk::PipelineShaderStageCreateInfo ShaderStages[] = {VertShaderStageInfo,
                                                       FragShaderStageInfo};
 
+  auto BindingDescription = Vertex::getBindingDescription();
+  auto AttributeDescriptions = Vertex::getAttributeDescriptions();
+
   vk::PipelineVertexInputStateCreateInfo VertexInputInfo;
-  VertexInputInfo.vertexBindingDescriptionCount = 0;
-  VertexInputInfo.pVertexBindingDescriptions = nullptr;
-  VertexInputInfo.vertexAttributeDescriptionCount = 0;
-  VertexInputInfo.pVertexAttributeDescriptions = nullptr;
+  VertexInputInfo.vertexBindingDescriptionCount = 1;
+  VertexInputInfo.pVertexBindingDescriptions = &BindingDescription;
+  VertexInputInfo.vertexAttributeDescriptionCount =
+      uint32_t(AttributeDescriptions.size());
+  VertexInputInfo.pVertexAttributeDescriptions = AttributeDescriptions.data();
 
   vk::PipelineInputAssemblyStateCreateInfo InputAssemblyInfo;
   InputAssemblyInfo.topology = vk::PrimitiveTopology::eTriangleList;
@@ -361,7 +378,7 @@ vk::Result Engine::createGraphicsPipeline() {
   RasterizationInfo.polygonMode = vk::PolygonMode::eFill;
   RasterizationInfo.lineWidth = 1.0f;
   RasterizationInfo.cullMode = vk::CullModeFlagBits::eBack;
-  RasterizationInfo.frontFace = vk::FrontFace::eCounterClockwise;
+  RasterizationInfo.frontFace = vk::FrontFace::eClockwise;
   RasterizationInfo.depthBiasEnable = VK_FALSE;
 
   vk::PipelineMultisampleStateCreateInfo MultisampleInfo;
@@ -404,7 +421,7 @@ vk::Result Engine::createGraphicsPipeline() {
 
   std::tie(Result, PipelineLayout) =
       take(Device->createPipelineLayoutUnique(PipelineLayoutInfo));
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   vk::GraphicsPipelineCreateInfo PipelineInfo;
   PipelineInfo.stageCount = 2;
@@ -425,7 +442,7 @@ vk::Result Engine::createGraphicsPipeline() {
 
   std::tie(Result, GraphicsPipeline) = take(
       Device->createGraphicsPipelineUnique(vk::PipelineCache(), PipelineInfo));
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   return vk::Result::eSuccess;
 }
@@ -448,11 +465,52 @@ vk::Result Engine::createFramebuffers() {
 
     std::tie(Result, SwapchainFramebuffers[I]) =
         take(Device->createFramebufferUnique(FramebufferInfo));
-    GUARD_RESULT(Result);
+    VKMOL_GUARD(Result);
   }
 
   return vk::Result::eSuccess;
 }
+
+vk::Result Engine::createVertexBuffer() {
+  vk::Result Result;
+
+  vk::BufferCreateInfo BufferInfo;
+  BufferInfo.size = sizeof(TestVertices[0]) * TestVertices.size();
+  BufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer;
+  BufferInfo.sharingMode = vk::SharingMode::eExclusive;
+
+  std::tie(Result, VertexBuffer) = take(Device->createBufferUnique(BufferInfo));
+  VKMOL_GUARD(Result);
+
+  auto MemRequirements = Device->getBufferMemoryRequirements(*VertexBuffer);
+
+  uint32_t MemoryTypeIndex;
+  std::tie(Result, MemoryTypeIndex) =
+      queryMemoryType(MemRequirements.memoryTypeBits,
+                      vk::MemoryPropertyFlagBits::eHostVisible |
+                          vk::MemoryPropertyFlagBits::eHostCoherent);
+  VKMOL_GUARD(Result);
+
+  vk::MemoryAllocateInfo AllocInfo;
+  AllocInfo.allocationSize = MemRequirements.size;
+  AllocInfo.memoryTypeIndex = MemoryTypeIndex;
+
+  std::tie(Result, VertexBufferMemory) =
+      take(Device->allocateMemoryUnique(AllocInfo));
+  VKMOL_GUARD(Result);
+
+  Device->bindBufferMemory(*VertexBuffer, *VertexBufferMemory, 0);
+
+  void *Data;
+  vk::MemoryMapFlags MapFlags;
+  Device->mapMemory(*VertexBufferMemory, 0, BufferInfo.size, MapFlags, &Data);
+  memcpy(Data, TestVertices.data(), size_t(BufferInfo.size));
+  Device->unmapMemory(*VertexBufferMemory);
+
+  return vk::Result::eSuccess;
+}
+
+vk::Result Engine::createIndexBuffer() { return vk::Result::eSuccess; }
 
 vk::Result Engine::createCommandPool() {
   vk::Result Result;
@@ -465,7 +523,7 @@ vk::Result Engine::createCommandPool() {
 
   std::tie(Result, CommandPool) =
       take(Device->createCommandPoolUnique(PoolInfo));
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   return vk::Result::eSuccess;
 }
@@ -482,11 +540,11 @@ vk::Result Engine::createCommandBuffers() {
   // std::vector<vk::UniqueHandle<vk::T>> cannot be moved properly.
   std::vector<vk::CommandBuffer> Buffers;
   std::tie(Result, Buffers) = Device->allocateCommandBuffers(AllocInfo);
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   CommandBuffers.reserve(SwapchainFramebuffers.size());
-  vk::UniqueHandleTraits<vk::CommandBuffer>::deleter Deleter(
-      *Device, *CommandPool);
+  vk::UniqueHandleTraits<vk::CommandBuffer>::deleter Deleter(*Device,
+                                                             *CommandPool);
 
   for (size_t I = 0; I < SwapchainFramebuffers.size(); ++I) {
     CommandBuffers.push_back(vk::UniqueCommandBuffer(Buffers[I], Deleter));
@@ -499,7 +557,7 @@ vk::Result Engine::createCommandBuffers() {
     BeginInfo.pInheritanceInfo = nullptr;
 
     Result = CommandBuffers[I]->begin(BeginInfo);
-    GUARD_RESULT(Result);
+    VKMOL_GUARD(Result);
 
     vk::RenderPassBeginInfo RenderPassInfo;
     RenderPassInfo.renderPass = *RenderPass;
@@ -511,18 +569,22 @@ vk::Result Engine::createCommandBuffers() {
     RenderPassInfo.clearValueCount = 1;
     RenderPassInfo.pClearValues = &ClearColor;
 
-    CommandBuffers[I]->beginRenderPass(
-        RenderPassInfo, vk::SubpassContents::eInline);
+    CommandBuffers[I]->beginRenderPass(RenderPassInfo,
+                                       vk::SubpassContents::eInline);
 
-    CommandBuffers[I]->bindPipeline(
-        vk::PipelineBindPoint::eGraphics, *GraphicsPipeline);
+    CommandBuffers[I]->bindPipeline(vk::PipelineBindPoint::eGraphics,
+                                    *GraphicsPipeline);
 
-    CommandBuffers[I]->draw(3, 1, 0, 0);
+    vk::Buffer VertexBuffers[] = {*VertexBuffer};
+    vk::DeviceSize Offsets[] = {0};
+    CommandBuffers[I]->bindVertexBuffers(0, 1, VertexBuffers, Offsets);
+
+    CommandBuffers[I]->draw(uint32_t(TestVertices.size()), 1, 0, 0);
 
     CommandBuffers[I]->endRenderPass();
 
     Result = CommandBuffers[I]->end();
-    GUARD_RESULT(Result);
+    VKMOL_GUARD(Result);
   }
 
   return vk::Result::eSuccess;
@@ -541,15 +603,15 @@ vk::Result Engine::createSyncObjects() {
   for (size_t I = 0; I < MaxFramesInFlight; ++I) {
     std::tie(Result, ImageAvailableSemaphores[I]) =
         take(Device->createSemaphoreUnique(SemaphoreInfo));
-    GUARD_RESULT(Result);
+    VKMOL_GUARD(Result);
 
     std::tie(Result, RenderFinishedSemaphores[I]) =
         take(Device->createSemaphoreUnique(SemaphoreInfo));
-    GUARD_RESULT(Result);
+    VKMOL_GUARD(Result);
 
     std::tie(Result, InFlightFences[I]) =
         take(Device->createFenceUnique(FenceInfo));
-    GUARD_RESULT(Result);
+    VKMOL_GUARD(Result);
   }
 
   return vk::Result::eSuccess;
@@ -563,7 +625,7 @@ Engine::scoreDevice(const vk::PhysicalDevice &Device) {
   // Check queue families:
   QueueFamilyIndices QueueFamilyIndices;
   std::tie(Result, QueueFamilyIndices) = queryQueueFamilies(Device);
-  GUARD_RESULT_VALUE(Result, Score);
+  VKMOL_GUARD_VALUE(Result, Score);
 
   if (!QueueFamilyIndices.isComplete()) {
     return {vk::Result::eSuccess, 0};
@@ -572,7 +634,7 @@ Engine::scoreDevice(const vk::PhysicalDevice &Device) {
   // Check extensions:
   bool ExtensionsSupported;
   std::tie(Result, ExtensionsSupported) = checkDeviceExtensionSupport(Device);
-  GUARD_RESULT_VALUE(Result, Score);
+  VKMOL_GUARD_VALUE(Result, Score);
 
   if (!ExtensionsSupported) {
     return {vk::Result::eSuccess, 0};
@@ -581,7 +643,7 @@ Engine::scoreDevice(const vk::PhysicalDevice &Device) {
   // Check swapchain:
   SwapchainSupportDetails SwapchainSupport;
   std::tie(Result, SwapchainSupport) = querySwapchainSupport(Device);
-  GUARD_RESULT_VALUE(Result, Score);
+  VKMOL_GUARD_VALUE(Result, Score);
 
   if (SwapchainSupport.Formats.empty() ||
       SwapchainSupport.PresentModes.empty()) {
@@ -615,10 +677,10 @@ vk::ResultValue<bool>
 Engine::checkDeviceExtensionSupport(const vk::PhysicalDevice &Device) {
   auto [Result, AvailableExtensions] =
       Device.enumerateDeviceExtensionProperties();
-  GUARD_RESULT_VALUE(Result, false);
+  VKMOL_GUARD_VALUE(Result, false);
 
-  std::set<std::string> RequiredExtensions(
-      DeviceExtensions.begin(), DeviceExtensions.end());
+  std::set<std::string> RequiredExtensions(DeviceExtensions.begin(),
+                                           DeviceExtensions.end());
 
   for (const auto &Extension : AvailableExtensions) {
     RequiredExtensions.erase(Extension.extensionName);
@@ -641,7 +703,7 @@ Engine::queryQueueFamilies(const vk::PhysicalDevice &Device) {
     }
 
     auto [Result, PresentSupported] = Device.getSurfaceSupportKHR(I, *Surface);
-    GUARD_RESULT_VALUE(Result, Indices);
+    VKMOL_GUARD_VALUE(Result, Indices);
 
     if (QueueFamily.queueCount > 0 && PresentSupported) {
       Indices.PresentFamilyIndex = I;
@@ -664,15 +726,15 @@ Engine::querySwapchainSupport(const vk::PhysicalDevice &Device) {
 
   std::tie(Result, Details.Capabilities) =
       take(Device.getSurfaceCapabilitiesKHR(*Surface));
-  GUARD_RESULT_VALUE(Result, Details);
+  VKMOL_GUARD_VALUE(Result, Details);
 
   std::tie(Result, Details.Formats) =
       take(Device.getSurfaceFormatsKHR(*Surface));
-  GUARD_RESULT_VALUE(Result, Details);
+  VKMOL_GUARD_VALUE(Result, Details);
 
   std::tie(Result, Details.PresentModes) =
       take(Device.getSurfacePresentModesKHR(*Surface));
-  GUARD_RESULT_VALUE(Result, Details);
+  VKMOL_GUARD_VALUE(Result, Details);
 
   return {vk::Result::eSuccess, Details};
 }
@@ -704,9 +766,9 @@ Engine::choosePresentMode(const std::vector<vk::PresentModeKHR> &Modes) {
     if (Mode == vk::PresentModeKHR::eMailbox) {
       return Mode;
     }
-//    else if (Mode == vk::PresentModeKHR::eImmediate) {
-//      PreferredMode = Mode;
-//    }
+    //    else if (Mode == vk::PresentModeKHR::eImmediate) {
+    //      PreferredMode = Mode;
+    //    }
   }
 
   return PreferredMode;
@@ -744,47 +806,95 @@ Engine::createShaderModule(const uint32_t *Code, size_t CodeSize) {
   return Device->createShaderModuleUnique(CreateInfo);
 }
 
+vk::ResultValue<uint32_t>
+Engine::queryMemoryType(uint32_t TypeFilter,
+                        vk::MemoryPropertyFlags Properties) {
+  auto MemProperties = PhysicalDevice.getMemoryProperties();
+
+  for (uint32_t i = 0; i < MemProperties.memoryTypeCount; i++) {
+    if ((TypeFilter & (1 << i)) && (MemProperties.memoryTypes[i].propertyFlags &
+                                    Properties) == Properties) {
+      return {vk::Result::eSuccess, i};
+    }
+  }
+
+  return {vk::Result::eErrorOutOfDeviceMemory, 0}; // todo: not the right error
+}
+
+vk::Result Engine::recreateSwapchain() {
+  printf("%s\n", "Recreating swapchain...");
+
+  vk::Result Result;
+  Device->waitIdle();
+
+  Result = createSwapchain();
+  VKMOL_GUARD(Result);
+
+  Result = createImageViews();
+  VKMOL_GUARD(Result);
+
+  Result = createRenderPass();
+  VKMOL_GUARD(Result);
+
+  Result = createGraphicsPipeline();
+  VKMOL_GUARD(Result);
+
+  Result = createFramebuffers();
+  VKMOL_GUARD(Result);
+
+  Result = createCommandBuffers();
+  VKMOL_GUARD(Result);
+
+  return vk::Result::eSuccess;
+}
+
 vk::Result Engine::initialize() {
   vk::Result Result;
 
   Result = createInstance();
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   Result = createSurface();
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   Result = installDebugCallback();
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   Result = createPhysicalDevice();
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   Result = createLogicalDevice();
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   Result = createSwapchain();
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   Result = createImageViews();
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   Result = createRenderPass();
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   Result = createGraphicsPipeline();
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   Result = createFramebuffers();
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   Result = createCommandPool();
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
+
+  Result = createVertexBuffer();
+  VKMOL_GUARD(Result);
+
+  Result = createIndexBuffer();
+  VKMOL_GUARD(Result);
 
   Result = createCommandBuffers();
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   Result = createSyncObjects();
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   return vk::Result::eSuccess;
 }
@@ -795,19 +905,22 @@ vk::Result Engine::drawFrame() {
 
   Result = Device->waitForFences(
       1, &*InFlightFences[CurrentFrame], VK_TRUE, MaxTimeOut);
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   Result = Device->resetFences(1, &*InFlightFences[CurrentFrame]);
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   uint32_t ImageIndex;
-  Result = Device->acquireNextImageKHR(
-      *Swapchain,
-      MaxTimeOut,
-      *ImageAvailableSemaphores[CurrentFrame],
-      nullptr,
-      &ImageIndex);
-  GUARD_RESULT(Result);
+  Result = Device->acquireNextImageKHR(*Swapchain,
+                                       MaxTimeOut,
+                                       *ImageAvailableSemaphores[CurrentFrame],
+                                       nullptr,
+                                       &ImageIndex);
+  if (Result == vk::Result::eErrorOutOfDateKHR ||
+      Result == vk::Result::eSuboptimalKHR) {
+    recreateSwapchain();
+  }
+  VKMOL_GUARD(Result);
 
   vk::SubmitInfo SubmitInfo;
   vk::Semaphore WaitSemaphores[] = {*ImageAvailableSemaphores[CurrentFrame]};
@@ -826,7 +939,7 @@ vk::Result Engine::drawFrame() {
   SubmitInfo.pSignalSemaphores = SignalSemaphores;
 
   Result = GraphicsQueue.submit(1, &SubmitInfo, *InFlightFences[CurrentFrame]);
-  GUARD_RESULT(Result);
+  VKMOL_GUARD(Result);
 
   vk::PresentInfoKHR PresentInfo;
   PresentInfo.waitSemaphoreCount = 1;
@@ -837,7 +950,12 @@ vk::Result Engine::drawFrame() {
   PresentInfo.pSwapchains = Swapchains;
   PresentInfo.pImageIndices = &ImageIndex;
 
-  PresentQueue.presentKHR(&PresentInfo);
+  Result = PresentQueue.presentKHR(&PresentInfo);
+  if (Result == vk::Result::eErrorOutOfDateKHR ||
+      Result == vk::Result::eSuboptimalKHR) {
+    recreateSwapchain();
+  }
+  VKMOL_GUARD(Result);
 
   CurrentFrame = (CurrentFrame + 1) % MaxFramesInFlight;
   return vk::Result::eSuccess;

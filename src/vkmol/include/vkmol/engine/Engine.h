@@ -157,6 +157,8 @@ private:
   vk::Result createRenderPass();
   vk::Result createGraphicsPipeline();
   vk::Result createFramebuffers();
+  vk::Result createVertexBuffer();
+  vk::Result createIndexBuffer();
   vk::Result createCommandPool();
   vk::Result createCommandBuffers();
   vk::Result createSyncObjects();
@@ -200,6 +202,14 @@ private:
 
   vk::ResultValue<vk::UniqueShaderModule>
   createShaderModule(const uint32_t *Code, size_t CodeSize);
+
+  vk::ResultValue<uint32_t> queryMemoryType(uint32_t TypeFilter,
+                           vk::MemoryPropertyFlags Properties);
+
+  // Other:
+  // -----
+
+  vk::Result recreateSwapchain();
 
 public:
   Engine(EngineCreateInfo CreateInfo);

@@ -12,7 +12,7 @@ endif ()
 
 add_library(vkmol
     src/engine/Engine.cpp
-    src/Debug.cpp)
+    src/Debug.cpp src/engine/Vertex.cpp src/engine/Uniform.cpp)
 
 target_include_directories(vkmol PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

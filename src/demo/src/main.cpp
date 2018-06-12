@@ -7,8 +7,8 @@
 #include <utility>
 #include <vector>
 
-const int WIDTH = 800;
-const int HEIGHT = 600;
+const int WIDTH = 1200;
+const int HEIGHT = 800;
 
 #ifdef NDEBUG
 bool enableValidationLayers = false;
@@ -29,15 +29,26 @@ void glfwErrorCallback(int error, const char *description) {
   fprintf(stderr, "Error (%d): %s\n", error, description);
 }
 
+void glfwWindowSizeCallback(GLFWwindow *Window, int width, int height) {
+  printf("FB: %d %d\n", width, height);
+}
+
+void glfwFramebufferSizeCallback(GLFWwindow *Window, int width, int height) {
+  printf("WN: %d %d\n", width, height);
+
+}
+
 int main(int argc, char **argv) {
   // 0.0 - Initialize GLFW and create a window.
   glfwSetErrorCallback(glfwErrorCallback);
-  glfwInit();
+  assert(glfwInit());
 
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
   // glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
   auto Window = glfwCreateWindow(WIDTH, HEIGHT, "Demo", nullptr, nullptr);
+  glfwSetWindowSizeCallback(Window, glfwWindowSizeCallback);
+  glfwSetFramebufferSizeCallback(Window, glfwFramebufferSizeCallback);
 
   auto InstanceExtensions = getGLFWExtensions();
   std::vector<const char *> DeviceExtensions;
@@ -67,22 +78,32 @@ int main(int argc, char **argv) {
     return std::make_tuple(Width, Height);
   };
 
-  vkmol::engine::Engine Engine(CreateInfo);
+  // This scope is deliberate: Engine has RAII semantics.
+  {
+    vkmol::engine::Engine Engine(CreateInfo);
 
-  auto Result = Engine.initialize();
-  if (Result != vk::Result::eSuccess) {
-    std::cerr << "Error: " << vk::to_string(Result) << "\n";
-    throw std::runtime_error("Failed to initialize vkmol.");
+    auto Result = Engine.initialize();
+    if (Result != vk::Result::eSuccess) {
+      std::cerr << "Error: " << vk::to_string(Result) << "\n";
+      throw std::runtime_error("Failed to initialize vkmol.");
+    }
+
+    // 4.0 – Main loop!
+    while (!glfwWindowShouldClose(Window)) {
+      glfwPollEvents();
+      Result = Engine.drawFrame();
+
+      if (Result != vk::Result::eSuccess) {
+        std::cerr << "Error: " << vk::to_string(Result) << "\n";
+      }
+    }
+
+    // 5.0 – Let everything finish up.
+    Engine.waitIdle();
   }
 
-  // 4.0 – Main loop!
-  while (!glfwWindowShouldClose(Window)) {
-    glfwPollEvents();
-    Engine.drawFrame();
-  }
-
-  // 5.0 – Let everything finish up.
-  Engine.waitIdle();
+  // Engine is destructed here now.
 
   glfwDestroyWindow(Window);
+  glfwTerminate();
 }
