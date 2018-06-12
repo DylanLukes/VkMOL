@@ -342,9 +342,9 @@ vk::Result Engine::createGraphicsPipeline() {
   vk::Result Result;
   vk::UniqueShaderModule VertShaderModule, FragShaderModule;
 
-  auto VertShaderCode = vkmol::shaders::V1VertSPIRV;
+  auto VertShaderCode = vkmol::shaders::V2VertSPIRV;
   auto VertShaderSize = sizeof(vkmol::shaders::V2VertSPIRV);
-  auto FragShaderCode = vkmol::shaders::V1FragSPIRV;
+  auto FragShaderCode = vkmol::shaders::V2FragSPIRV;
   auto FragShaderSize = sizeof(vkmol::shaders::V2FragSPIRV);
 
   std::tie(Result, VertShaderModule) =
@@ -403,7 +403,7 @@ vk::Result Engine::createGraphicsPipeline() {
   vk::PipelineRasterizationStateCreateInfo RasterizationInfo;
   RasterizationInfo.depthClampEnable = VK_FALSE;
   RasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
-  RasterizationInfo.polygonMode = vk::PolygonMode::eFill;
+  RasterizationInfo.polygonMode = vk::PolygonMode::eLine;
   RasterizationInfo.lineWidth = 1.0f;
   RasterizationInfo.cullMode = vk::CullModeFlagBits::eBack;
   RasterizationInfo.frontFace = vk::FrontFace::eCounterClockwise;
