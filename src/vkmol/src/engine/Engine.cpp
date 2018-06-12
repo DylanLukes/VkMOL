@@ -19,9 +19,16 @@
 namespace vkmol {
 namespace engine {
 
-const std::vector<Vertex> TestVertices = {{{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-                                          {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-                                          {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}};
+const std::vector<Vertex> Vertices = {
+    {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+    {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+    {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+    {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
+};
+
+const std::vector<uint16_t> Indices = {
+    0, 1, 2, 2, 3, 0
+};
 
 const std::vector<const char *> Engine::RequiredInstanceExtensions = {};
 
@@ -473,7 +480,7 @@ vk::Result Engine::createFramebuffers() {
 
 vk::Result Engine::createVertexBuffer() {
   vk::Result Result;
-  vk::DeviceSize BufferSize = sizeof(TestVertices[0]) * TestVertices.size();
+  vk::DeviceSize BufferSize = sizeof(Vertices[0]) * Vertices.size();
 
   std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory> StagingBufferAlloc;
   std::tie(Result, StagingBufferAlloc) =
@@ -488,7 +495,7 @@ vk::Result Engine::createVertexBuffer() {
                     BufferSize,
                     vk::MemoryMapFlags(),
                     &Data);
-  memcpy(Data, TestVertices.data(), size_t(BufferSize));
+  memcpy(Data, Vertices.data(), size_t(BufferSize));
   Device->unmapMemory(*std::get<1>(StagingBufferAlloc));
 
   std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory> VertexBufferAlloc;
@@ -507,7 +514,43 @@ vk::Result Engine::createVertexBuffer() {
   return vk::Result::eSuccess;
 }
 
-vk::Result Engine::createIndexBuffer() { return vk::Result::eSuccess; }
+vk::Result Engine::createIndexBuffer() {
+  vk::Result Result;
+  vk::DeviceSize BufferSize = sizeof(Indices[0]) * Indices.size();
+
+  std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory> StagingBufferAlloc;
+  std::tie(Result, StagingBufferAlloc) =
+      take(createBuffer(BufferSize,
+                        vk::BufferUsageFlagBits::eTransferSrc,
+                        vk::MemoryPropertyFlagBits::eHostVisible |
+                        vk::MemoryPropertyFlagBits::eHostCoherent));
+
+  void *Data;
+  Device->mapMemory(*std::get<1>(StagingBufferAlloc),
+                    0,
+                    BufferSize,
+                    vk::MemoryMapFlags(),
+                    &Data);
+  memcpy(Data, Indices.data(), size_t(BufferSize));
+  Device->unmapMemory(*std::get<1>(StagingBufferAlloc));
+
+  std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory> IndexBufferAlloc;
+  std::tie(Result, IndexBufferAlloc) =
+      take(createBuffer(BufferSize,
+                        vk::BufferUsageFlagBits::eTransferDst |
+                        vk::BufferUsageFlagBits::eIndexBuffer,
+                        vk::MemoryPropertyFlagBits::eDeviceLocal));
+
+
+
+  this->IndexBuffer = std::move(std::get<0>(IndexBufferAlloc));
+  this->IndexBufferMemory = std::move(std::get<1>(IndexBufferAlloc));
+
+  Result =
+      copyBuffer(*std::get<0>(StagingBufferAlloc), *IndexBuffer, BufferSize);
+
+  return vk::Result::eSuccess;
+}
 
 vk::Result Engine::createCommandPool() {
   vk::Result Result;
@@ -575,8 +618,9 @@ vk::Result Engine::createCommandBuffers() {
     vk::Buffer VertexBuffers[] = {*VertexBuffer};
     vk::DeviceSize Offsets[] = {0};
     CommandBuffers[I]->bindVertexBuffers(0, 1, VertexBuffers, Offsets);
+    CommandBuffers[I]->bindIndexBuffer(*IndexBuffer, 0, vk::IndexType::eUint16);
 
-    CommandBuffers[I]->draw(uint32_t(TestVertices.size()), 1, 0, 0);
+    CommandBuffers[I]->drawIndexed(uint32_t(Indices.size()), 1, 0, 0, 0);
 
     CommandBuffers[I]->endRenderPass();
 

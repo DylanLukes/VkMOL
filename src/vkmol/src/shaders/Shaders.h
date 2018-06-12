@@ -8,6 +8,9 @@ namespace shaders {
 
 #include "./V1.vert.h"
 #include "./V1.frag.h"
+
+#include "./V2.vert.h"
+#include "./V2.frag.h"
 }
 }
 
