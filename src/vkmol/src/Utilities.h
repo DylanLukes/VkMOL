@@ -20,10 +20,10 @@
     }                                                                          \
   } while (0)
 
-#define VKMOL_GUARD_MOVE_VALUE(__Result__, __Value__)                          \
+#define VKMOL_GUARD_VALUES(__Result__, ...)                          \
   do {                                                                         \
     if ((__Result__) != vk::Result::eSuccess) {                                \
-      return {(__Result__), std::move((__Value__))};                           \
+      return {(__Result__), __VA_ARGS__};                           \
     }                                                                          \
   } while (0)
 

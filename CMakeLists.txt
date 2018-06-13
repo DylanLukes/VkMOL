@@ -10,7 +10,7 @@ find_package(glfw3 REQUIRED)
 add_subdirectory(src/vkmol vkmol)
 add_subdirectory(src/demo demo)
 
-# Helps some IDEs (Clion) know what language version to use.
+# Helps some IDEs to know what language version to use in inspections.
 set(CMAKE_CXX_STANDARD 17)
 
 option (FORCE_COLORED_OUTPUT "Always produce ANSI-colored output (GNU/Clang only)." TRUE)

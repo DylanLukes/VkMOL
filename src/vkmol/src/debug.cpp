@@ -1,6 +1,6 @@
 #include <vulkan/vulkan.hpp>
 
-#include "vkmol/Debug.h"
+#include "vkmol/debug.h"
 
 #include <iostream>
 #include <sstream>

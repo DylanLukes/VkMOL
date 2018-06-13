@@ -3,14 +3,8 @@
 
 namespace vkmol {
 namespace shaders {
-#include "./V0.vert.h"
-#include "./V0.frag.h"
-
-#include "./V1.vert.h"
-#include "./V1.frag.h"
-
-#include "./V2.vert.h"
-#include "./V2.frag.h"
+#include "minimal.vert.h"
+#include "minimal.frag.h"
 }
 }
 

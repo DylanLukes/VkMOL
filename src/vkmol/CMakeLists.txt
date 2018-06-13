@@ -11,8 +11,10 @@ if (${FORCE_COLORED_OUTPUT})
 endif ()
 
 add_library(vkmol
-    src/engine/Engine.cpp
-    src/Debug.cpp src/engine/Vertex.cpp src/engine/Uniform.cpp)
+    src/engine/engine.cpp
+    src/engine/uniform.cpp
+    src/engine/vertex.cpp
+    src/debug.cpp)
 
 target_include_directories(vkmol PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -40,7 +42,9 @@ install(TARGETS vkmol EXPORT VkMOLConfig
 
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-install(EXPORT VkMOLConfig DESTINATION share/VkMOL/cmake)
+install(DIRECTORY share/ DESTINATION ${CMAKE_INSTALL_DATAROOTDIR})
+
+install(EXPORT VkMOLConfig DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/cmake)
 
 export(TARGETS vkmol FILE VkMOLConfig.cmake)
 

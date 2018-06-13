@@ -1,4 +1,4 @@
-#include <vkmol/engine/Vertex.h>
+#include <vkmol/engine/vertex.h>
 
 namespace vkmol {
 namespace engine {

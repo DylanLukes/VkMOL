@@ -1,4 +1,4 @@
-#include <vkmol/engine/Uniform.h>
+#include <vkmol/engine/uniform.h>
 
 namespace vkmol {
 namespace engine {

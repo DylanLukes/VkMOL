@@ -8,17 +8,19 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 
-#include "../shaders/Shaders.h"
-#include "./Utilities.h"
-#include <vkmol/Debug.h>
-#include <vkmol/engine/Engine.h>
-#include <vkmol/engine/Uniform.h>
-#include <vkmol/engine/Vertex.h>
+#include "../shaders/shaders.h"
+#include "./utilities.h"
+#include <vkmol/debug.h>
+#include <vkmol/engine/engine.h>
+#include <vkmol/engine/uniform.h>
+#include <vkmol/engine/vertex.h>
 
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
 #include <map>
+#include <tuple>
+#include <type_traits>
 #include <utility>
 
 namespace vkmol {
@@ -115,23 +117,25 @@ vk::Result Engine::createPhysicalDevice() {
     return vk::Result::eErrorInitializationFailed;
   }
 
-  std::multimap<int, vk::PhysicalDevice> Candidates;
+  std::multimap<int, std::tuple<vk::PhysicalDevice, vk::PhysicalDeviceFeatures>>
+      Candidates;
 
   for (const auto &Device : Devices) {
     uint32_t Score;
-    std::tie(Result, Score) = scoreDevice(Device);
+    vk::PhysicalDeviceFeatures Features;
+    std::tie(Result, Score, Features) = scoreDevice(Device);
     VKMOL_GUARD(Result);
 
-    Candidates.insert({Score, Device});
+    Candidates.insert({Score, {Device, Features}});
   }
 
-  auto [TopScore, BestDevice] = *Candidates.rbegin();
+  auto [TopScore, BestDeviceAndFeatures] = *Candidates.rbegin();
 
   if (TopScore < 0) {
     return vk::Result::eErrorInitializationFailed;
   }
 
-  PhysicalDevice = BestDevice;
+  std::tie(PhysicalDevice, PhysicalDeviceFeatures) = BestDeviceAndFeatures;
 
   return vk::Result::eSuccess;
 }
@@ -156,14 +160,19 @@ vk::Result Engine::createLogicalDevice() {
   }
 
   vk::PhysicalDeviceFeatures DeviceFeatures;
+  DeviceFeatures.fillModeNonSolid = VK_TRUE;
 
-  vk::DeviceCreateInfo CreateInfo(vk::DeviceCreateFlags(),
-                                  uint32_t(QueueCreateInfos.size()),
-                                  QueueCreateInfos.data(),
-                                  uint32_t(ValidationLayers.size()),
-                                  ValidationLayers.data(),
-                                  uint32_t(DeviceExtensions.size()),
-                                  DeviceExtensions.data());
+  vk::DeviceCreateInfo CreateInfo;
+  CreateInfo.pEnabledFeatures = &DeviceFeatures;
+
+  CreateInfo.queueCreateInfoCount = uint32_t(QueueCreateInfos.size());
+  CreateInfo.pQueueCreateInfos = QueueCreateInfos.data();
+
+  CreateInfo.enabledLayerCount = uint32_t(ValidationLayers.size());
+  CreateInfo.ppEnabledLayerNames = ValidationLayers.data();
+
+  CreateInfo.enabledExtensionCount = uint32_t(DeviceExtensions.size());
+  CreateInfo.ppEnabledExtensionNames = DeviceExtensions.data();
 
   std::tie(Result, Device) =
       take(PhysicalDevice.createDeviceUnique(CreateInfo));
@@ -198,6 +207,8 @@ vk::Result Engine::createSwapchain() {
   auto PresentMode = choosePresentMode(SwapchainSupport.PresentModes);
   auto Extent = chooseExtent(SwapchainSupport.Capabilities);
 
+  TRACE("EXTENT: %d %d\n", Extent.width, Extent.height);
+
   uint32_t MinImageCount = SwapchainSupport.Capabilities.minImageCount + 1;
 
   if (SwapchainSupport.Capabilities.maxImageCount > 0 &&
@@ -211,6 +222,7 @@ vk::Result Engine::createSwapchain() {
   std::vector<uint32_t> QueueFamilyIndices(Indices);
 
   CreateInfo.surface = *Surface;
+  CreateInfo.oldSwapchain = *Swapchain;
   CreateInfo.minImageCount = MinImageCount;
   CreateInfo.imageFormat = SurfaceFormat.format;
   CreateInfo.imageColorSpace = SurfaceFormat.colorSpace;
@@ -338,108 +350,8 @@ vk::Result Engine::createDescriptorSetLayout() {
   return vk::Result::eSuccess;
 }
 
-vk::Result Engine::createGraphicsPipeline() {
+vk::Result Engine::createGraphicsPipelineLayout() {
   vk::Result Result;
-  vk::UniqueShaderModule VertShaderModule, FragShaderModule;
-
-  auto VertShaderCode = vkmol::shaders::V2VertSPIRV;
-  auto VertShaderSize = sizeof(vkmol::shaders::V2VertSPIRV);
-  auto FragShaderCode = vkmol::shaders::V2FragSPIRV;
-  auto FragShaderSize = sizeof(vkmol::shaders::V2FragSPIRV);
-
-  std::tie(Result, VertShaderModule) =
-      take(createShaderModule(VertShaderCode, VertShaderSize));
-  VKMOL_GUARD(Result);
-
-  std::tie(Result, FragShaderModule) =
-      take(createShaderModule(FragShaderCode, FragShaderSize));
-  VKMOL_GUARD(Result);
-
-  vk::PipelineShaderStageCreateInfo VertShaderStageInfo;
-  VertShaderStageInfo.stage = vk::ShaderStageFlagBits::eVertex;
-  VertShaderStageInfo.module = *VertShaderModule;
-  VertShaderStageInfo.pName = "main";
-
-  vk::PipelineShaderStageCreateInfo FragShaderStageInfo;
-  FragShaderStageInfo.stage = vk::ShaderStageFlagBits::eFragment;
-  FragShaderStageInfo.module = *FragShaderModule;
-  FragShaderStageInfo.pName = "main";
-
-  vk::PipelineShaderStageCreateInfo ShaderStages[] = {VertShaderStageInfo,
-                                                      FragShaderStageInfo};
-
-  auto BindingDescription = Vertex::getBindingDescription();
-  auto AttributeDescriptions = Vertex::getAttributeDescriptions();
-
-  vk::PipelineVertexInputStateCreateInfo VertexInputInfo;
-  VertexInputInfo.vertexBindingDescriptionCount = 1;
-  VertexInputInfo.pVertexBindingDescriptions = &BindingDescription;
-  VertexInputInfo.vertexAttributeDescriptionCount =
-      uint32_t(AttributeDescriptions.size());
-  VertexInputInfo.pVertexAttributeDescriptions = AttributeDescriptions.data();
-
-  vk::PipelineInputAssemblyStateCreateInfo InputAssemblyInfo;
-  InputAssemblyInfo.topology = vk::PrimitiveTopology::eTriangleList;
-  InputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
-
-  vk::Viewport Viewport;
-  Viewport.x = 0.0f;
-  Viewport.y = 0.0f;
-  Viewport.width = (float)SwapchainExtent.width;
-  Viewport.height = (float)SwapchainExtent.height;
-  Viewport.minDepth = 0.0f;
-  Viewport.maxDepth = 1.0f;
-
-  vk::Rect2D Scissor;
-  Scissor.offset = vk::Offset2D(0, 0);
-  Scissor.extent = SwapchainExtent;
-
-  vk::PipelineViewportStateCreateInfo ViewportInfo;
-  ViewportInfo.viewportCount = 1;
-  ViewportInfo.pViewports = &Viewport;
-  ViewportInfo.scissorCount = 1;
-  ViewportInfo.pScissors = &Scissor;
-
-  vk::PipelineRasterizationStateCreateInfo RasterizationInfo;
-  RasterizationInfo.depthClampEnable = VK_FALSE;
-  RasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
-  RasterizationInfo.polygonMode = vk::PolygonMode::eLine;
-  RasterizationInfo.lineWidth = 1.0f;
-  RasterizationInfo.cullMode = vk::CullModeFlagBits::eBack;
-  RasterizationInfo.frontFace = vk::FrontFace::eCounterClockwise;
-  RasterizationInfo.depthBiasEnable = VK_FALSE;
-
-  vk::PipelineMultisampleStateCreateInfo MultisampleInfo;
-  MultisampleInfo.sampleShadingEnable = VK_FALSE;
-  MultisampleInfo.rasterizationSamples = vk::SampleCountFlagBits::e1;
-  MultisampleInfo.minSampleShading = 1.0f;
-  MultisampleInfo.pSampleMask = nullptr;
-  MultisampleInfo.alphaToCoverageEnable = VK_FALSE;
-  MultisampleInfo.alphaToOneEnable = VK_FALSE;
-
-  vk::PipelineColorBlendAttachmentState ColorBlendAttachmentState;
-  ColorBlendAttachmentState.colorWriteMask =
-      vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-      vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
-  ColorBlendAttachmentState.blendEnable = VK_TRUE;
-  ColorBlendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
-  ColorBlendAttachmentState.dstColorBlendFactor = vk::BlendFactor::eDstAlpha;
-  ColorBlendAttachmentState.colorBlendOp = vk::BlendOp::eAdd;
-  ColorBlendAttachmentState.srcAlphaBlendFactor =
-      vk::BlendFactor::eOneMinusSrcAlpha;
-  ColorBlendAttachmentState.srcAlphaBlendFactor =
-      vk::BlendFactor::eOneMinusSrcAlpha;
-  ColorBlendAttachmentState.alphaBlendOp = vk::BlendOp::eAdd;
-
-  vk::PipelineColorBlendStateCreateInfo ColorBlendInfo;
-  ColorBlendInfo.logicOpEnable = VK_FALSE;
-  ColorBlendInfo.logicOp = vk::LogicOp::eCopy;
-  ColorBlendInfo.attachmentCount = 1;
-  ColorBlendInfo.pAttachments = &ColorBlendAttachmentState;
-  ColorBlendInfo.blendConstants[0] = 0.0f;
-  ColorBlendInfo.blendConstants[1] = 0.0f;
-  ColorBlendInfo.blendConstants[2] = 0.0f;
-  ColorBlendInfo.blendConstants[3] = 0.0f;
 
   vk::PipelineLayoutCreateInfo PipelineLayoutInfo;
   PipelineLayoutInfo.setLayoutCount = 1;
@@ -451,26 +363,27 @@ vk::Result Engine::createGraphicsPipeline() {
       take(Device->createPipelineLayoutUnique(PipelineLayoutInfo));
   VKMOL_GUARD(Result);
 
-  vk::GraphicsPipelineCreateInfo PipelineInfo;
-  PipelineInfo.stageCount = 2;
-  PipelineInfo.pStages = ShaderStages;
-  PipelineInfo.pVertexInputState = &VertexInputInfo;
-  PipelineInfo.pInputAssemblyState = &InputAssemblyInfo;
-  PipelineInfo.pViewportState = &ViewportInfo;
-  PipelineInfo.pRasterizationState = &RasterizationInfo;
-  PipelineInfo.pMultisampleState = &MultisampleInfo;
-  PipelineInfo.pDepthStencilState = nullptr;
-  PipelineInfo.pColorBlendState = &ColorBlendInfo;
-  PipelineInfo.pDynamicState = nullptr;
-  PipelineInfo.layout = *PipelineLayout;
-  PipelineInfo.renderPass = *RenderPass;
-  PipelineInfo.subpass = 0;
-  PipelineInfo.basePipelineHandle = nullptr;
-  PipelineInfo.basePipelineIndex = 0;
+  return vk::Result::eSuccess;
+}
 
-  std::tie(Result, GraphicsPipeline) = take(
-      Device->createGraphicsPipelineUnique(vk::PipelineCache(), PipelineInfo));
+vk::Result Engine::createGraphicsPipelines() {
+  vk::Result Result;
+  vk::UniquePipeline NormalPipeline, WireframePipeline;
+
+  GraphicsPipelines.clear();
+  GraphicsPipelines.resize(2);
+
+  std::tie(Result, NormalPipeline) =
+      take(createGraphicsPipeline(vk::PrimitiveTopology::eTriangleList));
   VKMOL_GUARD(Result);
+
+  GraphicsPipelines[PipelineIndex::Normal] = std::move(NormalPipeline);
+
+  std::tie(Result, WireframePipeline) =
+      take(createGraphicsPipeline(vk::PrimitiveTopology::eLineStrip));
+  VKMOL_GUARD(Result);
+
+  GraphicsPipelines[PipelineIndex::Wireframe] = std::move(WireframePipeline);
 
   return vk::Result::eSuccess;
 }
@@ -597,7 +510,6 @@ vk::Result Engine::createDescriptorPool() {
   PoolSize.descriptorCount = 1;
 
   vk::DescriptorPoolCreateInfo PoolInfo;
-  // PoolInfo.flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet;
   PoolInfo.poolSizeCount = 1;
   PoolInfo.pPoolSizes = &PoolSize;
   PoolInfo.maxSets = 1;
@@ -618,15 +530,8 @@ vk::Result Engine::createDescriptorSet() {
   AllocInfo.descriptorSetCount = 1;
   AllocInfo.pSetLayouts = Layouts;
 
-  std::vector<vk::DescriptorSet> RawDescriptorSets;
-  std::tie(Result, RawDescriptorSets) =
-      take(Device->allocateDescriptorSets(AllocInfo));
+  std::tie(Result, DescriptorSets) = Device->allocateDescriptorSets(AllocInfo);
   VKMOL_GUARD(Result);
-
-  auto Deleter = vk::UniqueHandleTraits<vk::DescriptorSet>::deleter(
-      *Device, *DescriptorPool);
-
-  DescriptorSet = vk::UniqueDescriptorSet(RawDescriptorSets.front(), Deleter);
 
   vk::DescriptorBufferInfo BufferInfo;
   BufferInfo.buffer = *UniformBuffer;
@@ -634,7 +539,7 @@ vk::Result Engine::createDescriptorSet() {
   BufferInfo.range = sizeof(UniformBufferObject);
 
   vk::WriteDescriptorSet DescriptorWrite;
-  DescriptorWrite.dstSet = *DescriptorSet;
+  DescriptorWrite.dstSet = DescriptorSets.front();
   DescriptorWrite.dstBinding = 0;
   DescriptorWrite.dstArrayElement = 0;
   DescriptorWrite.descriptorType = vk::DescriptorType::eUniformBuffer;
@@ -676,6 +581,7 @@ vk::Result Engine::createCommandBuffers() {
   std::tie(Result, Buffers) = Device->allocateCommandBuffers(AllocInfo);
   VKMOL_GUARD(Result);
 
+  CommandBuffers.clear();
   CommandBuffers.reserve(SwapchainFramebuffers.size());
   vk::UniqueHandleTraits<vk::CommandBuffer>::deleter Deleter(*Device,
                                                              *CommandPool);
@@ -707,7 +613,7 @@ vk::Result Engine::createCommandBuffers() {
                                        vk::SubpassContents::eInline);
 
     CommandBuffers[I]->bindPipeline(vk::PipelineBindPoint::eGraphics,
-                                    *GraphicsPipeline);
+                                    *GraphicsPipelines[ActivePipeline]);
 
     vk::Buffer VertexBuffers[] = {*VertexBuffer};
     vk::DeviceSize Offsets[] = {0};
@@ -717,7 +623,7 @@ vk::Result Engine::createCommandBuffers() {
                                           *PipelineLayout,
                                           0,
                                           1,
-                                          &*DescriptorSet,
+                                          &DescriptorSets.front(),
                                           0,
                                           nullptr);
 
@@ -759,41 +665,50 @@ vk::Result Engine::createSyncObjects() {
   return vk::Result::eSuccess;
 }
 
-vk::ResultValue<uint32_t>
+std::tuple<vk::Result, uint32_t, vk::PhysicalDeviceFeatures>
 Engine::scoreDevice(const vk::PhysicalDevice &Device) {
   vk::Result Result;
   uint32_t Score = 0;
+  vk::PhysicalDeviceFeatures Features;
+
+  auto NonViable = std::make_tuple(vk::Result::eSuccess, 0, Features);
 
   // Check queue families:
   QueueFamilyIndices QueueFamilyIndices;
   std::tie(Result, QueueFamilyIndices) = queryQueueFamilies(Device);
-  VKMOL_GUARD_VALUE(Result, Score);
+  VKMOL_GUARD_VALUES(Result, Score, Features);
 
   if (!QueueFamilyIndices.isComplete()) {
-    return {vk::Result::eSuccess, 0};
+    return NonViable;
   }
 
   // Check extensions:
   bool ExtensionsSupported;
   std::tie(Result, ExtensionsSupported) = checkDeviceExtensionSupport(Device);
-  VKMOL_GUARD_VALUE(Result, Score);
+  VKMOL_GUARD_VALUES(Result, Score, Features);
 
   if (!ExtensionsSupported) {
-    return {vk::Result::eSuccess, 0};
+    return NonViable;
   }
 
   // Check swapchain:
   SwapchainSupportDetails SwapchainSupport;
   std::tie(Result, SwapchainSupport) = querySwapchainSupport(Device);
-  VKMOL_GUARD_VALUE(Result, Score);
+  VKMOL_GUARD_VALUES(Result, Score, Features);
 
   if (SwapchainSupport.Formats.empty() ||
       SwapchainSupport.PresentModes.empty()) {
-    return {vk::Result::eSuccess, 0};
+    return NonViable;
   }
 
   // Can use feature support to zero undesirable devices.
-  // auto Features = Device.getFeatures();
+  auto AvailableFeatures = Device.getFeatures();
+
+  if (AvailableFeatures.fillModeNonSolid == VK_FALSE) {
+    return NonViable;
+  } else {
+    Features.fillModeNonSolid = VK_TRUE;
+  }
 
   // Can use properties to boost preferable devices.
   auto Properties = Device.getProperties();
@@ -811,8 +726,7 @@ Engine::scoreDevice(const vk::PhysicalDevice &Device) {
 
   // Can also score by limits and other properties here...
   // score += Properties.limits.maxWhatever
-
-  return {vk::Result::eSuccess, Score};
+  return {vk::Result::eSuccess, Score, Features};
 }
 
 vk::ResultValue<bool>
@@ -948,6 +862,135 @@ Engine::createShaderModule(const uint32_t *Code, size_t CodeSize) {
   return Device->createShaderModuleUnique(CreateInfo);
 }
 
+vk::ResultValue<vk::UniquePipeline>
+Engine::createGraphicsPipeline(vk::PrimitiveTopology Topology) {
+  vk::Result Result;
+  vk::UniquePipeline GraphicsPipeline;
+  vk::UniqueShaderModule VertShaderModule, FragShaderModule;
+
+  auto VertShaderCode = vkmol::shaders::minimalVertSPIRV;
+  auto VertShaderSize = sizeof(vkmol::shaders::minimalVertSPIRV);
+  auto FragShaderCode = vkmol::shaders::minimalFragSPIRV;
+  auto FragShaderSize = sizeof(vkmol::shaders::minimalFragSPIRV);
+
+  std::tie(Result, VertShaderModule) =
+      take(createShaderModule(VertShaderCode, VertShaderSize));
+  VKMOL_GUARD_VALUE(Result, std::move(GraphicsPipeline));
+
+  std::tie(Result, FragShaderModule) =
+      take(createShaderModule(FragShaderCode, FragShaderSize));
+  VKMOL_GUARD_VALUE(Result, std::move(GraphicsPipeline));
+
+  vk::PipelineShaderStageCreateInfo VertShaderStageInfo;
+  VertShaderStageInfo.stage = vk::ShaderStageFlagBits::eVertex;
+  VertShaderStageInfo.module = *VertShaderModule;
+  VertShaderStageInfo.pName = "main";
+
+  vk::PipelineShaderStageCreateInfo FragShaderStageInfo;
+  FragShaderStageInfo.stage = vk::ShaderStageFlagBits::eFragment;
+  FragShaderStageInfo.module = *FragShaderModule;
+  FragShaderStageInfo.pName = "main";
+
+  vk::PipelineShaderStageCreateInfo ShaderStages[] = {VertShaderStageInfo,
+                                                      FragShaderStageInfo};
+
+  auto BindingDescription = Vertex::getBindingDescription();
+  auto AttributeDescriptions = Vertex::getAttributeDescriptions();
+
+  vk::PipelineVertexInputStateCreateInfo VertexInputInfo;
+  VertexInputInfo.vertexBindingDescriptionCount = 1;
+  VertexInputInfo.pVertexBindingDescriptions = &BindingDescription;
+  VertexInputInfo.vertexAttributeDescriptionCount =
+      uint32_t(AttributeDescriptions.size());
+  VertexInputInfo.pVertexAttributeDescriptions = AttributeDescriptions.data();
+
+  vk::PipelineInputAssemblyStateCreateInfo InputAssemblyInfo;
+  InputAssemblyInfo.topology = Topology;
+  InputAssemblyInfo.primitiveRestartEnable = VK_FALSE;
+
+  vk::Viewport Viewport;
+  Viewport.x = 0.0f;
+  Viewport.y = 0.0f;
+  Viewport.width = (float)SwapchainExtent.width;
+  Viewport.height = (float)SwapchainExtent.height;
+  Viewport.minDepth = 0.0f;
+  Viewport.maxDepth = 1.0f;
+
+  vk::Rect2D Scissor;
+  Scissor.offset = vk::Offset2D(0, 0);
+  Scissor.extent = SwapchainExtent;
+
+  vk::PipelineViewportStateCreateInfo ViewportInfo;
+  ViewportInfo.viewportCount = 1;
+  ViewportInfo.pViewports = &Viewport;
+  ViewportInfo.scissorCount = 1;
+  ViewportInfo.pScissors = &Scissor;
+
+  vk::PipelineRasterizationStateCreateInfo RasterizationInfo;
+  RasterizationInfo.depthClampEnable = VK_FALSE;
+  RasterizationInfo.rasterizerDiscardEnable = VK_FALSE;
+  RasterizationInfo.polygonMode = vk::PolygonMode::eFill;
+  RasterizationInfo.lineWidth = 1.0f;
+  RasterizationInfo.cullMode = vk::CullModeFlagBits::eNone;
+  RasterizationInfo.frontFace = vk::FrontFace::eCounterClockwise;
+  RasterizationInfo.depthBiasEnable = VK_FALSE;
+
+  vk::PipelineMultisampleStateCreateInfo MultisampleInfo;
+  MultisampleInfo.sampleShadingEnable = VK_FALSE;
+  MultisampleInfo.rasterizationSamples = vk::SampleCountFlagBits::e1;
+  MultisampleInfo.minSampleShading = 1.0f;
+  MultisampleInfo.pSampleMask = nullptr;
+  MultisampleInfo.alphaToCoverageEnable = VK_FALSE;
+  MultisampleInfo.alphaToOneEnable = VK_FALSE;
+
+  vk::PipelineColorBlendAttachmentState ColorBlendAttachmentState;
+  ColorBlendAttachmentState.colorWriteMask =
+      vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+      vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+  ColorBlendAttachmentState.blendEnable = VK_TRUE;
+  ColorBlendAttachmentState.srcColorBlendFactor = vk::BlendFactor::eSrcAlpha;
+  ColorBlendAttachmentState.dstColorBlendFactor = vk::BlendFactor::eDstAlpha;
+  ColorBlendAttachmentState.colorBlendOp = vk::BlendOp::eAdd;
+  ColorBlendAttachmentState.srcAlphaBlendFactor =
+      vk::BlendFactor::eOneMinusSrcAlpha;
+  ColorBlendAttachmentState.srcAlphaBlendFactor =
+      vk::BlendFactor::eOneMinusSrcAlpha;
+  ColorBlendAttachmentState.alphaBlendOp = vk::BlendOp::eAdd;
+
+  vk::PipelineColorBlendStateCreateInfo ColorBlendInfo;
+  ColorBlendInfo.logicOpEnable = VK_FALSE;
+  ColorBlendInfo.logicOp = vk::LogicOp::eCopy;
+  ColorBlendInfo.attachmentCount = 1;
+  ColorBlendInfo.pAttachments = &ColorBlendAttachmentState;
+  ColorBlendInfo.blendConstants[0] = 0.0f;
+  ColorBlendInfo.blendConstants[1] = 0.0f;
+  ColorBlendInfo.blendConstants[2] = 0.0f;
+  ColorBlendInfo.blendConstants[3] = 0.0f;
+
+  vk::GraphicsPipelineCreateInfo PipelineInfo;
+  PipelineInfo.stageCount = 2;
+  PipelineInfo.pStages = ShaderStages;
+  PipelineInfo.pVertexInputState = &VertexInputInfo;
+  PipelineInfo.pInputAssemblyState = &InputAssemblyInfo;
+  PipelineInfo.pViewportState = &ViewportInfo;
+  PipelineInfo.pRasterizationState = &RasterizationInfo;
+  PipelineInfo.pMultisampleState = &MultisampleInfo;
+  PipelineInfo.pDepthStencilState = nullptr;
+  PipelineInfo.pColorBlendState = &ColorBlendInfo;
+  PipelineInfo.pDynamicState = nullptr;
+  PipelineInfo.layout = *PipelineLayout;
+  PipelineInfo.renderPass = *RenderPass;
+  PipelineInfo.subpass = 0;
+  PipelineInfo.basePipelineHandle = nullptr;
+  PipelineInfo.basePipelineIndex = 0;
+
+  std::tie(Result, GraphicsPipeline) = take(
+      Device->createGraphicsPipelineUnique(vk::PipelineCache(), PipelineInfo));
+  VKMOL_GUARD_VALUE(Result, std::move(GraphicsPipeline));
+
+  return {vk::Result::eSuccess, std::move(GraphicsPipeline)};
+}
+
 vk::ResultValue<uint32_t>
 Engine::queryMemoryType(uint32_t TypeFilter,
                         vk::MemoryPropertyFlags Properties) {
@@ -1050,7 +1093,7 @@ void Engine::updateUniformBuffer() {
 
   UniformBufferObject UBO;
   UBO.Model = glm::rotate(
-      glm::mat4(1.0f), Time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+      glm::mat4(1.0f), Time * glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
   UBO.View = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f),
                          glm::vec3(0.0f, 0.0f, 0.0f),
                          glm::vec3(0.0f, 0.0f, 1.0f));
@@ -1069,8 +1112,6 @@ void Engine::updateUniformBuffer() {
 }
 
 vk::Result Engine::recreateSwapchain() {
-  printf("%s\n", "Recreating swapchain...");
-
   vk::Result Result;
   Device->waitIdle();
 
@@ -1083,7 +1124,7 @@ vk::Result Engine::recreateSwapchain() {
   Result = createRenderPass();
   VKMOL_GUARD(Result);
 
-  Result = createGraphicsPipeline();
+  Result = createGraphicsPipelines();
   VKMOL_GUARD(Result);
 
   Result = createFramebuffers();
@@ -1125,7 +1166,10 @@ vk::Result Engine::initialize() {
   Result = createDescriptorSetLayout();
   VKMOL_GUARD(Result);
 
-  Result = createGraphicsPipeline();
+  Result = createGraphicsPipelineLayout();
+  VKMOL_GUARD(Result);
+
+  Result = createGraphicsPipelines();
   VKMOL_GUARD(Result);
 
   Result = createFramebuffers();
@@ -1164,11 +1208,12 @@ vk::Result Engine::drawFrame() {
   vk::Result Result;
   auto MaxTimeOut = std::numeric_limits<uint64_t>::max();
 
-  Result = Device->waitForFences(
-      1, &*InFlightFences[CurrentFrame], VK_TRUE, MaxTimeOut);
+  vk::Fence WaitFences[] = {*InFlightFences[CurrentFrame]};
+
+  Result = Device->waitForFences(1, WaitFences, VK_TRUE, MaxTimeOut);
   VKMOL_GUARD(Result);
 
-  Result = Device->resetFences(1, &*InFlightFences[CurrentFrame]);
+  Result = Device->resetFences(1, WaitFences);
   VKMOL_GUARD(Result);
 
   uint32_t ImageIndex;
@@ -1223,6 +1268,14 @@ vk::Result Engine::drawFrame() {
 }
 
 vk::Result Engine::waitIdle() { return Device->waitIdle(); }
+
+vk::Result Engine::resize() { return recreateSwapchain(); }
+
+void Engine::setActivePipeline(PipelineIndex Index) {
+  this->ActivePipeline = Index;
+  Device->waitIdle();
+  createCommandBuffers();
+}
 
 } // namespace engine
 } // namespace vkmol

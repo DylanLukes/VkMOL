@@ -6,6 +6,11 @@ namespace vkmol {
 static const char *VKMOL_ENGINE_NAME = "VkMOL";
 static const uint32_t VKMOL_ENGINE_VERSION = VK_MAKE_VERSION(1, 0, 0);
 
+namespace engine {
+
+enum PipelineIndex { Normal = 0, Wireframe = 1 };
+}
+
 } // namespace vkmol
 
 #endif // VKMOL_CONSTANTS_H

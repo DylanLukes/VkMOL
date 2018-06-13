@@ -3,19 +3,12 @@
 
 #include <vulkan/vulkan.hpp>
 
-#include <algorithm>
-#include <array>
-#include <cstdlib>
-#include <cstring>
-#include <fstream>
 #include <functional>
-#include <iostream>
 #include <set>
-#include <stdexcept>
 #include <vector>
 
-#include <vkmol/Constants.h>
-#include <vkmol/Debug.h>
+#include <vkmol/constants.h>
+#include <vkmol/debug.h>
 
 namespace vkmol {
 namespace engine {
@@ -52,7 +45,7 @@ struct QueueFamilyIndices {
   }
 
   explicit operator std::set<uint32_t>() {
-    std::vector<uint32_t> V(*this);
+    auto V = static_cast<std::vector<uint32_t>>(*this);
     return std::set<uint32_t>(V.begin(), V.end());
   }
 };
@@ -87,6 +80,7 @@ private:
   vk::UniqueSurfaceKHR Surface;
 
   vk::PhysicalDevice PhysicalDevice = nullptr;
+  vk::PhysicalDeviceFeatures PhysicalDeviceFeatures;
   vk::UniqueDevice Device;
 
   vk::Queue GraphicsQueue;
@@ -101,8 +95,11 @@ private:
 
   vk::UniqueRenderPass RenderPass;
   vk::UniqueDescriptorSetLayout DescriptorSetLayout;
+
+  PipelineIndex ActivePipeline = PipelineIndex::Normal;
+
   vk::UniquePipelineLayout PipelineLayout;
-  vk::UniquePipeline GraphicsPipeline;
+  std::vector<vk::UniquePipeline> GraphicsPipelines;
 
   vk::UniqueCommandPool CommandPool;
 
@@ -119,7 +116,7 @@ private:
   vk::UniqueDeviceMemory UniformBufferMemory;
 
   vk::UniqueDescriptorPool DescriptorPool;
-  vk::UniqueDescriptorSet DescriptorSet;
+  std::vector<vk::DescriptorSet> DescriptorSets;
 
   std::vector<vk::UniqueCommandBuffer> CommandBuffers;
 
@@ -127,7 +124,7 @@ private:
   std::vector<vk::UniqueSemaphore> RenderFinishedSemaphores;
   std::vector<vk::UniqueFence> InFlightFences;
 
-  size_t CurrentFrame;
+  size_t CurrentFrame = 0;
 
   // Initialization State
   // --------------------
@@ -151,7 +148,8 @@ private:
   vk::Result createImageViews();
   vk::Result createRenderPass();
   vk::Result createDescriptorSetLayout();
-  vk::Result createGraphicsPipeline();
+  vk::Result createGraphicsPipelineLayout();
+  vk::Result createGraphicsPipelines();
   vk::Result createFramebuffers();
   vk::Result createVertexBuffer();
   vk::Result createIndexBuffer();
@@ -168,9 +166,10 @@ private:
   /**
    * Assigns a score to a PhysicalDevice. Higher is better.
    * @param Device the device to score.
-   * @return a positive integer, or zero for a non-viable device.
+   * @return
    */
-  vk::ResultValue<uint32_t> scoreDevice(const vk::PhysicalDevice &Device);
+  std::tuple<vk::Result, uint32_t, vk::PhysicalDeviceFeatures>
+  scoreDevice(const vk::PhysicalDevice &Device);
 
   /**
    * Checks whether a device supports the required extensions.
@@ -202,6 +201,9 @@ private:
   vk::ResultValue<vk::UniqueShaderModule>
   createShaderModule(const uint32_t *Code, size_t CodeSize);
 
+  vk::ResultValue<vk::UniquePipeline>
+  createGraphicsPipeline(vk::PrimitiveTopology Topology);
+
   vk::ResultValue<uint32_t> queryMemoryType(uint32_t TypeFilter,
                                             vk::MemoryPropertyFlags Properties);
 
@@ -226,6 +228,9 @@ public:
   vk::Result initialize();
   vk::Result drawFrame();
   vk::Result waitIdle();
+  vk::Result resize();
+
+  void setActivePipeline(PipelineIndex Index);
 };
 
 } // namespace engine
