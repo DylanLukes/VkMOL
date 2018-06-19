@@ -1,5 +1,5 @@
-#ifndef VKMOL_RENDERER_RESOURCE_H
-#define VKMOL_RENDERER_RESOURCE_H
+#ifndef VKMOL_RENDERER_RESOURCEHANDLE_H
+#define VKMOL_RENDERER_RESOURCEHANDLE_H
 
 #include <cstdint>
 #include <type_traits>
@@ -42,4 +42,4 @@ public:
 }; // namespace renderer
 }; // namespace vkmol
 
-#endif //VKMOL_RENDERER_RESOURCE_H
+#endif //VKMOL_RENDERER_RESOURCEHANDLE_H

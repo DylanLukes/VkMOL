@@ -6,8 +6,13 @@
 #include <functional>
 #include <memory>
 
+#include "Buffer.h"
+#include "ResourceHandle.h"
+
 namespace vkmol {
 namespace renderer {
+
+using BufferHandle = ResourceHandle<Buffer>;
 
 // note: there is only one renderer implementation, however this could be
 // changed at later date to allow alternative (or mock) implementations.
@@ -17,33 +22,35 @@ struct RendererInfo {
     bool trace;
 
     // WSI-agnostic callbacks:
-    std::function<vk::SurfaceKHR(vk::Instance)> getSurface;
+    std::function<vk::SurfaceKHR(vk::Instance)>             getSurface;
     std::function<std::tuple<unsigned int, unsigned int>()> getSize;
 
-    RendererInfo()
-    : debug(false)
-    , trace(false) {}
+    RendererInfo() : debug(false), trace(false) {}
 };
-
-class RendererImpl;
 
 class Renderer {
 private:
-    std::unique_ptr<RendererImpl> impl;
+
 
 public:
+#pragma mark - Lifecycle
+
     explicit Renderer(const RendererInfo &info);
 
     Renderer(const Renderer &) = delete;
     Renderer &operator=(const Renderer &) = delete;
 
-    Renderer(Renderer &&other);
-    Renderer &operator=(Renderer &&other);
+    Renderer(Renderer &&other) = default;
+    Renderer &operator=(Renderer &&other) = default;
 
-    ~Renderer();
+    ~Renderer() = default;
+
+#pragma mark - Resource Management
+
+    BufferHandle createBuffer(BufferType type, uint32_t size, const void *contents);
 };
 
 }; // namespace renderer
 }; // namespace vkmol
 
-#endif //VKMOL_RENDERER_RENDERER_H
+#endif // VKMOL_RENDERER_RENDERER_H

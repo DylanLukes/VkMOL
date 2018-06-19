@@ -1,8 +1,4 @@
-//
-// Created by Dylan Lukes on 6/19/18.
-//
-
-#include <vkmol/renderer/Buffer.h>
+#include "vkmol/renderer/Buffer.h"
 
 namespace vkmol {
 namespace renderer {
@@ -71,6 +67,10 @@ Buffer::~Buffer() {
 bool Buffer::operator==(const Buffer &other) const {
     // todo: is this sufficient?
     return this->buffer == other.buffer;
+}
+
+size_t Buffer::getHash() const {
+    return std::hash<uint64_t>()(reinterpret_cast<uint64_t>(VkBuffer(buffer)));
 }
 
 }; // namespace renderer

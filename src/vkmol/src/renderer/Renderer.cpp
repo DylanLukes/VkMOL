@@ -1,29 +1,51 @@
-#include <vkmol/internal/renderer/RendererImpl.h>
-#include <vkmol/renderer/Renderer.h>
+#include "vkmol/renderer/Renderer.h"
+#include <vkmol/internal/Utilities.h>
 
 #include <cassert>
 
 namespace vkmol {
 namespace renderer {
 
-Renderer::Renderer(const RendererInfo &info)
-: impl(new RendererImpl(info)) {}
+#pragma mark - Utilities
 
-Renderer::Renderer(Renderer &&other)
-: impl(std::move(other.impl)) {}
-
-Renderer &Renderer::operator=(Renderer &&other) {
-    if (this == &other) {
-        return *this;
+vk::BufferUsageFlags bufferTypeUsageFlags(BufferType type) {
+    vk::BufferUsageFlags flags;
+    switch (type) {
+        case BufferType::Invalid:
+            UNREACHABLE();
+        case BufferType::Vertex:
+            flags |= vk::BufferUsageFlagBits::eVertexBuffer;
+            break;
+        case BufferType::Index:
+            flags |= vk::BufferUsageFlagBits::eIndexBuffer;
+            break;
+        case BufferType::Uniform:
+            flags |= vk::BufferUsageFlagBits::eUniformBuffer;
+            break;
     }
 
-    assert(!impl);
-
-    impl = std::move(other.impl);
-    return *this;
+    return flags;
 }
 
-Renderer::~Renderer() = default;
+#pragma mark - Lifecycle
+
+Renderer::Renderer(const RendererInfo &info) {
+    // TODO: instantiate
+}
+
+#pragma mark - Resource Management
+
+BufferHandle Renderer::createBuffer(BufferType type, uint32_t size, const void *contents) {
+    assert(type != BufferType::Invalid);
+    assert(size != 0);
+    assert(contents != nullptr);
+
+    vk::BufferCreateInfo info;
+    info.size = size;
+    info.usage = bufferTypeUsageFlags(type);
+
+
+}
 
 }; // namespace renderer
 }; // namespace vkmol

@@ -1,5 +1,5 @@
-#include <vkmol/renderer/ResourceHandle.h>
-#include <vkmol/internal/renderer/ResourceContainer.h>
+#include "vkmol/renderer/ResourceHandle.h"
+#include "vkmol/renderer/ResourceContainer.h"
 
 namespace vkmol {
 namespace renderer {

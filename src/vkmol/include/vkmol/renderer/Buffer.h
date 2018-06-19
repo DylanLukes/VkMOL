@@ -54,6 +54,7 @@ struct Buffer {
 #pragma mark - Operations
 
     bool operator==(const Buffer &other) const;
+    size_t getHash() const;
 };
 
 }; // namespace renderer

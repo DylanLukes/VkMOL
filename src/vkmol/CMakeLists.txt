@@ -13,7 +13,6 @@ endif ()
 add_library(vkmol
     src/renderer/Buffer.cpp
     src/renderer/Renderer.cpp
-    src/renderer/RendererImpl.cpp
     src/renderer/ResourceContainer.cpp
     src/renderer/ResourceHandle.cpp)
 

@@ -8,10 +8,7 @@ struct SwapchainInfo {
     unsigned int width, height;
     unsigned int imageCount;
 
-    SwapchainInfo()
-    : width(0)
-    , height(0)
-    , imageCount(3) {}
+    SwapchainInfo();
 };
 
 }; // namespace renderer
