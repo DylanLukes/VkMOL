@@ -1,3 +1,4 @@
 [submodule "polyfill/xcode-libcxx"]
 	path = polyfill/xcode-libcxx
 	url = https://github.com/youknowone/xcode-libcxx.git
+	ignore = dirty
