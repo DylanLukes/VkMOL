@@ -10,7 +10,7 @@ namespace renderer {
 
 struct Buffer;
 
-using Resource = std::variant<Buffer>
+using Resource = std::variant<Buffer>;
 
 }; // namespace renderer
 }; // namespace vkmol
