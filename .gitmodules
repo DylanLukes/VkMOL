@@ -1,4 +1,3 @@
-[submodule "polyfill/xcode-libcxx"]
-	path = polyfill/xcode-libcxx
+[submodule "shims/xcode-libcxx"]
+	path = shims/xcode-libcxx
 	url = https://github.com/youknowone/xcode-libcxx.git
-	ignore = dirty
