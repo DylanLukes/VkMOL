@@ -10,17 +10,12 @@ if (${FORCE_COLORED_OUTPUT})
     endif ()
 endif ()
 
-add_library(vkmol
+add_library(vkmol SHARED
     src/renderer/Buffer.cpp
+    src/renderer/Debug.cpp
     src/renderer/Renderer.cpp
-    src/renderer/ResourceContainer.cpp
-    src/renderer/ResourceHandle.cpp)
-
-# Apple Xcode's is missing some libc++ headers (that should be there).
-
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
-    include_directories(../../shims/xcode-libcxx)
-endif ()
+    src/renderer/Resource.cpp
+    )
 
 target_include_directories(vkmol PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
