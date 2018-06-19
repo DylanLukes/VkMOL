@@ -11,10 +11,11 @@ if (${FORCE_COLORED_OUTPUT})
 endif ()
 
 add_library(vkmol
-    src/engine/engine.cpp
-    src/engine/uniform.cpp
-    src/engine/vertex.cpp
-    src/debug.cpp)
+    src/renderer/Buffer.cpp
+    src/renderer/Renderer.cpp
+    src/renderer/RendererImpl.cpp
+    src/renderer/ResourceContainer.cpp
+    src/renderer/ResourceHandle.cpp)
 
 target_include_directories(vkmol PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -24,10 +25,7 @@ target_include_directories(vkmol PUBLIC
 target_compile_features(vkmol
     PUBLIC cxx_std_17)
 
-add_definitions(-DVULKAN_HPP_NO_EXCEPTIONS)
-
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions")
 
 target_link_libraries(vkmol Vulkan::Vulkan)
 

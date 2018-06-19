@@ -3,6 +3,10 @@
 
 #include <vulkan/vulkan.hpp>
 
+#define GLM_FORCE_RADIANS
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+
 #include <functional>
 #include <set>
 #include <vector>
@@ -11,7 +15,25 @@
 #include <vkmol/debug.h>
 
 namespace vkmol {
-namespace engine {
+namespace renderer {
+
+struct Vertex {
+    glm::vec2 pos;
+    glm::vec3 color;
+
+    static vk::VertexInputBindingDescription getBindingDescription();
+
+    static std::array<vk::VertexInputAttributeDescription, 2>
+    getAttributeDescriptions();
+};
+
+struct UniformBufferObject {
+    glm::mat4 Model;
+    glm::mat4 View;
+    glm::mat4 Projection;
+
+    void dummy();
+};
 
 using SurfaceFactory = typename std::function<vk::ResultValue<vk::SurfaceKHR>(
     const vk::Instance &)>;
@@ -19,19 +41,19 @@ using SurfaceFactory = typename std::function<vk::ResultValue<vk::SurfaceKHR>(
 using WindowSizeCallback = typename std::function<std::tuple<int, int>(void)>;
 
 struct EngineCreateInfo {
-  const char *AppName;
-  uint32_t AppVersion;
+  const char *              AppName;
+  uint32_t                  AppVersion;
   std::vector<const char *> InstanceExtensions;
   std::vector<const char *> DeviceExtensions;
   std::vector<const char *> ValidationLayers;
 
-  SurfaceFactory SurfaceFactory;
+  SurfaceFactory     SurfaceFactory;
   WindowSizeCallback WindowSizeCallback;
 };
 
 struct QueueFamilyIndices {
   int GraphicsFamilyIndex = -1;
-  int PresentFamilyIndex = -1;
+  int PresentFamilyIndex  = -1;
 
   bool isComplete() {
     return GraphicsFamilyIndex >= 0 && PresentFamilyIndex >= 0;
@@ -51,9 +73,9 @@ struct QueueFamilyIndices {
 };
 
 struct SwapchainSupportDetails {
-  vk::SurfaceCapabilitiesKHR Capabilities;
+  vk::SurfaceCapabilitiesKHR        Capabilities;
   std::vector<vk::SurfaceFormatKHR> Formats;
-  std::vector<vk::PresentModeKHR> PresentModes;
+  std::vector<vk::PresentModeKHR>   PresentModes;
 };
 
 class Engine {
@@ -76,53 +98,53 @@ private:
 
   vk::UniqueDebugReportCallbackEXT Callback;
 
-  vk::UniqueInstance Instance;
+  vk::UniqueInstance   Instance;
   vk::UniqueSurfaceKHR Surface;
 
-  vk::PhysicalDevice PhysicalDevice = nullptr;
+  vk::PhysicalDevice         PhysicalDevice = nullptr;
   vk::PhysicalDeviceFeatures PhysicalDeviceFeatures;
-  vk::UniqueDevice Device;
+  vk::UniqueDevice           Device;
 
   vk::Queue GraphicsQueue;
   vk::Queue PresentQueue;
 
-  vk::UniqueSwapchainKHR Swapchain;
-  std::vector<vk::Image> SwapchainImages;
-  vk::Format SwapchainImageFormat;
-  vk::Extent2D SwapchainExtent;
-  std::vector<vk::UniqueImageView> SwapchainImageViews;
+  vk::UniqueSwapchainKHR             Swapchain;
+  std::vector<vk::Image>             SwapchainImages;
+  vk::Format                         SwapchainImageFormat;
+  vk::Extent2D                       SwapchainExtent;
+  std::vector<vk::UniqueImageView>   SwapchainImageViews;
   std::vector<vk::UniqueFramebuffer> SwapchainFramebuffers;
 
-  vk::UniqueRenderPass RenderPass;
+  vk::UniqueRenderPass          RenderPass;
   vk::UniqueDescriptorSetLayout DescriptorSetLayout;
 
   PipelineIndex ActivePipeline = PipelineIndex::Normal;
 
-  vk::UniquePipelineLayout PipelineLayout;
+  vk::UniquePipelineLayout        PipelineLayout;
   std::vector<vk::UniquePipeline> GraphicsPipelines;
 
   vk::UniqueCommandPool CommandPool;
 
-  vk::UniqueImage DepthImage;
+  vk::UniqueImage        DepthImage;
   vk::UniqueDeviceMemory DepthImageMemory;
-  vk::UniqueImageView DepthImageView;
+  vk::UniqueImageView    DepthImageView;
 
-  vk::UniqueBuffer VertexBuffer;
+  vk::UniqueBuffer       VertexBuffer;
   vk::UniqueDeviceMemory VertexBufferMemory;
-  vk::UniqueBuffer IndexBuffer;
+  vk::UniqueBuffer       IndexBuffer;
   vk::UniqueDeviceMemory IndexBufferMemory;
 
-  vk::UniqueBuffer UniformBuffer;
+  vk::UniqueBuffer       UniformBuffer;
   vk::UniqueDeviceMemory UniformBufferMemory;
 
-  vk::UniqueDescriptorPool DescriptorPool;
+  vk::UniqueDescriptorPool       DescriptorPool;
   std::vector<vk::DescriptorSet> DescriptorSets;
 
   std::vector<vk::UniqueCommandBuffer> CommandBuffers;
 
   std::vector<vk::UniqueSemaphore> ImageAvailableSemaphores;
   std::vector<vk::UniqueSemaphore> RenderFinishedSemaphores;
-  std::vector<vk::UniqueFence> InFlightFences;
+  std::vector<vk::UniqueFence>     InFlightFences;
 
   size_t CurrentFrame = 0;
 
@@ -134,7 +156,7 @@ private:
   std::vector<const char *> DeviceExtensions;
   std::vector<const char *> ValidationLayers;
 
-  SurfaceFactory SurfaceFactory;
+  SurfaceFactory     SurfaceFactory;
   WindowSizeCallback GetWindowSize;
 
   // Setup Routines
@@ -204,7 +226,7 @@ private:
   vk::ResultValue<vk::UniquePipeline>
   createGraphicsPipeline(vk::PrimitiveTopology Topology);
 
-  vk::ResultValue<uint32_t> queryMemoryType(uint32_t TypeFilter,
+  vk::ResultValue<uint32_t> queryMemoryType(uint32_t                TypeFilter,
                                             vk::MemoryPropertyFlags Properties);
 
   // Other:
@@ -213,8 +235,8 @@ private:
   vk::Result recreateSwapchain();
 
   vk::ResultValue<std::tuple<vk::UniqueBuffer, vk::UniqueDeviceMemory>>
-  createBuffer(vk::DeviceSize Size,
-               vk::BufferUsageFlags UsageFlags,
+  createBuffer(vk::DeviceSize          Size,
+               vk::BufferUsageFlags    UsageFlags,
                vk::MemoryPropertyFlags MemoryFlags);
   vk::Result
   copyBuffer(vk::Buffer SrcBuffer, vk::Buffer DstBuffer, vk::DeviceSize Size);
@@ -233,7 +255,7 @@ public:
   void setActivePipeline(PipelineIndex Index);
 };
 
-} // namespace engine
+} // namespace renderer
 } // namespace vkmol
 
 #endif // vk::MOL_ENGINE_H

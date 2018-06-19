@@ -52,7 +52,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugReportMessageEXT(
   std::stringstream debug;
   debug << prefix << " [" << pLayerPrefix << "] Code " << messageCode << " : " << pMessage;
 
-  // TODO: handle differently elsewhere?
+  // TODO: id differently elsewhere?
   std::cerr << debug.str() << "\n";
 
   return VK_FALSE;

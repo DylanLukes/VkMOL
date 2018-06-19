@@ -1,6 +1,6 @@
 # VkMOL
 
-A proof-of-concept portable Vulkan-ized rendering engine for molecular modeling software.
+A proof-of-concept portable Vulkan-ized rendering render for molecular modeling software.
 
 (**IMPORTANT: This project is in progress and not remotely complete.**)
 
@@ -22,5 +22,7 @@ This project is licensed under the MIT License – see the LICENSE file for deta
 
 ## Acknowledgements 
 
- - The venerable members of the `##OpenGL` and `##vulkan` freenode channels.
-
+ - The users of the `##OpenGL` and `##vulkan` freenode channels.
+ - [Turo Lamminen](https://github.com/turol/)
+   - Resource management and general structure.
+   - Heavy inspiration taken from: https://github.com/turol/smaaDemo

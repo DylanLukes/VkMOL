@@ -17,7 +17,7 @@ bool enableValidationLayers = false;
 bool enableValidationLayers = true;
 #endif
 
-vkmol::engine::Engine *Engine;
+vkmol::render::Engine *Engine;
 
 std::vector<const char *> getGLFWExtensions() {
   uint32_t GLFWExtensionCount = 0;
@@ -39,10 +39,10 @@ void onFramebufferSize(GLFWwindow *Window, int Width, int Height) {
 
 void onKey(GLFWwindow *Window, int Key, int Scancode, int Action, int Mods) {
   if (Key == GLFW_KEY_1 && Action == GLFW_PRESS) {
-    Engine->setActivePipeline(vkmol::engine::PipelineIndex::Normal);
+    Engine->setActivePipeline(vkmol::render::PipelineIndex::Normal);
   }
   else if (Key == GLFW_KEY_2 && Action == GLFW_PRESS) {
-    Engine->setActivePipeline(vkmol::engine::PipelineIndex::Wireframe);
+    Engine->setActivePipeline(vkmol::render::PipelineIndex::Wireframe);
   }
 }
 
@@ -68,7 +68,7 @@ int main(int argc, char **argv) {
     ValidationLayers.push_back("VK_LAYER_LUNARG_standard_validation");
   }
 
-  vkmol::engine::EngineCreateInfo CreateInfo;
+  vkmol::render::EngineCreateInfo CreateInfo;
   CreateInfo.AppName = "VkMol Demo";
   CreateInfo.AppVersion = VK_MAKE_VERSION(1, 0, 0);
   CreateInfo.InstanceExtensions = InstanceExtensions;
@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
   };
 
 
-  Engine = new vkmol::engine::Engine(CreateInfo);
+  Engine = new vkmol::render::Engine(CreateInfo);
 
   auto Result = Engine->initialize();
   if (Result != vk::Result::eSuccess) {
