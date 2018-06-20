@@ -26,9 +26,6 @@
 #include <vkmol/vkmol.h>
 
 #include <iostream>
-#include <memory>
-#include <utility>
-#include <vector>
 
 const int WIDTH  = 1200;
 const int HEIGHT = 800;
@@ -69,8 +66,6 @@ int main(int argc, char **argv) {
     auto window = glfwCreateWindow(WIDTH, HEIGHT, "Demo", nullptr, nullptr);
     glfwSetFramebufferSizeCallback(window, onFramebufferSize);
     glfwSetKeyCallback(window, onKey);
-
-    auto InstanceExtensions = getGLFWExtensions();
 
     vkmol::renderer::RendererInfo rendererInfo;
     rendererInfo.appName    = "VkMOL Demo";

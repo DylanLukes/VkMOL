@@ -26,6 +26,7 @@ target_compile_features(vkmol
     PUBLIC cxx_std_17)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic")
 
 target_link_libraries(vkmol Vulkan::Vulkan)
 

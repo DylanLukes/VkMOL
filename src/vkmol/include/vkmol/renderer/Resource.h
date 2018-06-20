@@ -24,6 +24,7 @@
 #define VKMOL_RENDERER_RESOURCE_H
 
 #include "Buffer.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <type_traits>

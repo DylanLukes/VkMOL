@@ -9,7 +9,7 @@ find_package(glfw3 REQUIRED)
 
 # Apple Xcode's is missing some libc++ headers (that should be there).
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
-    include_directories(shims/xcode-libcxx)
+    include_directories(vendor/xcode-libcxx)
 endif ()
 
 add_subdirectory(src/vkmol vkmol)

@@ -21,6 +21,13 @@
 */
 
 #include "vkmol/private/Debug.h"
+#include <iostream>
+#include <sstream>
+
+PFN_vkCreateDebugReportCallbackEXT pfn_vkCreateDebugReportCallbackEXT = nullptr;
+PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT =
+    nullptr;
+PFN_vkDebugMarkerSetObjectNameEXT pfn_vkDebugMarkerSetObjectNameEXT = nullptr;
 
 VKAPI_ATTR VkResult VKAPI_CALL vkCreateDebugReportCallbackEXT(
     VkInstance                                instance,
@@ -44,4 +51,32 @@ VKAPI_ATTR VkResult VKAPI_CALL vkDebugMarkerSetObjectNameEXT(
     VkDevice device, const VkDebugMarkerObjectNameInfoEXT *pNameInfo) {
     assert(pfn_vkDebugMarkerSetObjectNameEXT);
     return pfn_vkDebugMarkerSetObjectNameEXT(device, pNameInfo);
+}
+
+VkBool32 debugCallbackFunc(VkDebugReportFlagsEXT      flags,
+                           VkDebugReportObjectTypeEXT objectType,
+                           uint64_t                   object,
+                           size_t                     location,
+                           int32_t                    messageCode,
+                           const char *               pLayerPrefix,
+                           const char *               pMessage,
+                           void *                     pUserData) {
+
+    std::string prefix;
+
+    if (flags & VK_DEBUG_REPORT_ERROR_BIT_EXT) prefix += "ERROR:";
+    if (flags & VK_DEBUG_REPORT_WARNING_BIT_EXT) prefix += "WARNING:";
+    if (flags & VK_DEBUG_REPORT_INFORMATION_BIT_EXT) prefix += "INFO:";
+    if (flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT) prefix += "DEBUG:";
+    if (flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT)
+        prefix += "PERFORMANCE:";
+
+    std::stringstream debug;
+    debug << prefix << " [" << pLayerPrefix << "] Code " << messageCode << " : "
+          << pMessage;
+
+    // TODO: handle differently elsewhere?
+    std::cerr << debug.str() << "\n";
+
+    return VK_FALSE;
 }

@@ -37,8 +37,8 @@ Buffer::Buffer(Buffer &&other)
 : type(other.type)
 , allocationType(other.allocationType)
 , size(other.size)
-, buffer(other.buffer)
 , offset(other.offset)
+, buffer(other.buffer)
 , memory(other.memory)
 , lastUsedFrame(other.lastUsedFrame) {
     other.type           = BufferType::Invalid;

@@ -20,7 +20,6 @@
   SOFTWARE.
 */
 
-#include "vkmol/renderer/Renderer.h"
 #include "vkmol/renderer/Resource.h"
 
 namespace vkmol {

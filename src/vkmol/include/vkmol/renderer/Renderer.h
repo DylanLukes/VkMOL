@@ -46,11 +46,11 @@ struct RendererWSIDelegate {
 };
 
 struct RendererInfo {
-    std::string appName;
-    uint32_t    appVersion;
-
     bool debug;
     bool trace;
+
+    std::string appName;
+    uint32_t    appVersion;
 
     RendererWSIDelegate delegate;
 
@@ -66,6 +66,8 @@ typedef ResourceHandle<Buffer> BufferHandle;
 class Renderer {
 private:
     // todo: std::vector<Frame> frames;
+
+    RendererWSIDelegate delegate;
 
     ResourceContainer<Buffer> buffers;
     // todo: ... other resource containers
@@ -103,7 +105,7 @@ private:
 public:
 #pragma mark - Lifecycle
 
-    explicit Renderer(const RendererInfo &info);
+    explicit Renderer(const RendererInfo &rendererInfo);
 
     Renderer(const Renderer &) = delete;
     Renderer &operator=(const Renderer &) = delete;
@@ -111,7 +113,7 @@ public:
     Renderer(Renderer &&other) = default;
     Renderer &operator=(Renderer &&other) = default;
 
-    ~Renderer() = default;
+    ~Renderer();
 
 #pragma mark - Resource Management
 
