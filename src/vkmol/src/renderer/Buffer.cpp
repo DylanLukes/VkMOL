@@ -33,7 +33,7 @@ Buffer::Buffer()
 , memory(nullptr)
 , lastUsedFrame(0) {}
 
-Buffer::Buffer(Buffer &&other)
+Buffer::Buffer(Buffer &&other) noexcept
 : type(other.type)
 , allocationType(other.allocationType)
 , size(other.size)
@@ -50,7 +50,7 @@ Buffer::Buffer(Buffer &&other)
     other.lastUsedFrame  = 0;
 }
 
-Buffer &Buffer::operator=(Buffer &&other) {
+Buffer &Buffer::operator=(Buffer &&other) noexcept {
     if (this == &other) { return *this; }
 
     assert(!buffer);

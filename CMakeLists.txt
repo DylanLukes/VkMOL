@@ -3,14 +3,21 @@ project(vkmol VERSION 0.1)
 
 include(GNUInstallDirs)
 
+if(NOT DEFINED ENV{CCP4})
+    message(FATAL_ERROR "Please set $CCP4 (see README/cmake cache).")
+endif()
+
 find_package(Vulkan REQUIRED)
 find_package(glm REQUIRED)
 find_package(glfw3 REQUIRED)
 
-# Apple Xcode's is missing some libc++ headers (that should be there).
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
-    include_directories(vendor/xcode-libcxx)
-endif ()
+set(CCP4_FIND_COMPONENTS
+    clipper-core
+    clipper-ccp4
+    clipper-mmdb
+    mmdb2)
+set(ccp4_DIR $ENV{CCP4}/share/ccp4/)
+find_package(ccp4 REQUIRED CONFIG NO_DEFAULT_PATH)
 
 add_subdirectory(src/vkmol vkmol)
 add_subdirectory(src/demo demo)

@@ -2,11 +2,11 @@ project(libvkmol VERSION 0.1)
 
 if (${FORCE_COLORED_OUTPUT})
     if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-       add_compile_options (-fdiagnostics-color=always)
+        add_compile_options(-fdiagnostics-color=always)
     elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-       add_compile_options (-fcolor-diagnostics)
+        add_compile_options(-fcolor-diagnostics)
     elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
-       add_compile_options (-fcolor-diagnostics)
+        add_compile_options(-fcolor-diagnostics)
     endif ()
 endif ()
 
@@ -15,11 +15,11 @@ add_library(vkmol SHARED
     src/renderer/Debug.cpp
     src/renderer/Renderer.cpp
     src/renderer/Resource.cpp
-    )
+    src/renderer/Allocator.cpp)
 
-target_include_directories(vkmol PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
+target_include_directories(vkmol
+    PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+           $<INSTALL_INTERFACE:include>
     PRIVATE src)
 
 target_compile_features(vkmol
@@ -28,16 +28,25 @@ target_compile_features(vkmol
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pedantic")
 
-target_link_libraries(vkmol Vulkan::Vulkan)
+# The following are set due to vk_mem_alloc.h:
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-gnu-zero-variadic-macro-arguments")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-missing-field-initializers")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-unused-variable -Wno-unused-parameter")
 
-if(APPLE)
+include_directories(${CCP4_INCLUDE_DIRS})
+
+target_link_libraries(vkmol
+    Vulkan::Vulkan
+    ${CCP4_LIBRARIES})
+
+if (APPLE)
     target_link_libraries(vkmol MoltenVK)
-endif()
+endif ()
 
 install(TARGETS vkmol EXPORT VkMOLConfig
-    ARCHIVE  DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    LIBRARY  DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME  DESTINATION ${CMAKE_INSTALL_BINDIR})  # This is for Windows
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})  # This is for Windows
 
 install(DIRECTORY include/ DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 

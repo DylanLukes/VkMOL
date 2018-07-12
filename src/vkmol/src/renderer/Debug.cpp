@@ -24,6 +24,13 @@
 #include <iostream>
 #include <sstream>
 
+#pragma mark - Loguru
+
+#define LOGURU_IMPLEMENTATION 1
+#include "vkmol/private/loguru/loguru.hpp"
+
+#pragma mark - Vulkan
+
 PFN_vkCreateDebugReportCallbackEXT pfn_vkCreateDebugReportCallbackEXT = nullptr;
 PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT =
     nullptr;

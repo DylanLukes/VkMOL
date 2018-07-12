@@ -29,6 +29,8 @@
 #include <cstdint>
 #include <type_traits>
 #include <unordered_map>
+
+#undef _LIBCPP_USE_AVAILABILITY_APPLE
 #include <variant>
 
 namespace vkmol {

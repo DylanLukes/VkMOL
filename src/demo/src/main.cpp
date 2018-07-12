@@ -69,7 +69,7 @@ int main(int argc, char **argv) {
 
     vkmol::renderer::RendererInfo rendererInfo;
     rendererInfo.appName    = "VkMOL Demo";
-    rendererInfo.appVersion = VK_MAKE_VERSION(1, 0, 0);
+    rendererInfo.appVersion = {1, 0, 0};
     rendererInfo.debug      = enableDebug;
     rendererInfo.trace      = enableTrace;
 
@@ -100,10 +100,14 @@ int main(int argc, char **argv) {
     rendererInfo.delegate = rendererDelegate;
 
 
-    Renderer = new vkmol::renderer::Renderer(rendererInfo);
+    try {
+        Renderer = new vkmol::renderer::Renderer(rendererInfo);
 
-    while (!glfwWindowShouldClose(window)) {
-        glfwPollEvents();
+        while (!glfwWindowShouldClose(window)) {
+            glfwPollEvents();
+        }
+    } catch (std::runtime_error err) {
+        std::cerr << "Fatal error: " << err.what() << std::endl;
     }
 
     delete Renderer;

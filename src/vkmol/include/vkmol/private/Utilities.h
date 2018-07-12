@@ -25,6 +25,14 @@
 
 #define UNREACHABLE() __builtin_unreachable()
 
+#define VK_VERSION_TUPLE(version) \
+    {VK_VERSION_MAJOR(version),   \
+    VK_VERSION_MINOR(version),    \
+    VK_VERSION_PATCH(version)}
 
+#define VK_MAKE_VERSION_TUPLE(tuple)    \
+    VK_MAKE_VERSION(std::get<0>(tuple), \
+        std::get<1>(tuple),             \
+        std::get<2>(tuple));
 
 #endif // VKMOL_INTERNAL_UTILITIES_H

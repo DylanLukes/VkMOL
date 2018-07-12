@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="FUSProjectUsageTrigger">
+    <session id="1201965388">
+      <usages-collector id="statistics.file.extensions.open">
+        <counts>
+          <entry key="Makefile" value="1" />
+          <entry key="c" value="3" />
+          <entry key="clang-format" value="7" />
+          <entry key="cpp" value="21" />
+          <entry key="frag" value="1" />
+          <entry key="h" value="42" />
+          <entry key="hpp" value="8" />
+          <entry key="inl" value="1" />
+          <entry key="md" value="2" />
+          <entry key="txt" value="6" />
+          <entry key="type_traits" value="1" />
+          <entry key="vert" value="1" />
+        </counts>
+      </usages-collector>
+      <usages-collector id="statistics.file.types.open">
+        <counts>
+          <entry key="CMakeLists.txt" value="6" />
+          <entry key="GLSL shader file" value="2" />
+          <entry key="Makefile" value="1" />
+          <entry key="Markdown" value="2" />
+          <entry key="ObjectiveC" value="76" />
+          <entry key="PLAIN_TEXT" value="7" />
+        </counts>
+      </usages-collector>
+      <usages-collector id="statistics.file.extensions.edit">
+        <counts>
+          <entry key="LLDB" value="271" />
+          <entry key="Makefile" value="19" />
+          <entry key="clang-format" value="56" />
+          <entry key="cpp" value="2665" />
+          <entry key="h" value="5548" />
+          <entry key="md" value="206" />
+          <entry key="txt" value="121" />
+          <entry key="vert" value="1" />
+        </counts>
+      </usages-collector>
+      <usages-collector id="statistics.file.types.edit">
+        <counts>
+          <entry key="CMakeLists.txt" value="121" />
+          <entry key="GLSL shader file" value="1" />
+          <entry key="LLDBCommands" value="271" />
+          <entry key="Makefile" value="19" />
+          <entry key="Markdown" value="206" />
+          <entry key="ObjectiveC" value="8213" />
+          <entry key="PLAIN_TEXT" value="56" />
+        </counts>
+      </usages-collector>
+      <usages-collector id="statistics.cidr.testingFrameworks.usages" />
+    </session>
+  </component>
+</project>

@@ -25,7 +25,6 @@
 
 #include "Buffer.h"
 #include "Resource.h"
-#include "Resource.h"
 
 #include <functional>
 #include <unordered_set>
@@ -49,16 +48,13 @@ struct RendererInfo {
     bool debug;
     bool trace;
 
-    std::string appName;
-    uint32_t    appVersion;
+    std::string               appName;
+    std::tuple<int, int, int> appVersion;
 
     RendererWSIDelegate delegate;
 
     RendererInfo()
-    : debug(false)
-    , trace(false)
-    , appName("untitled")
-    , appVersion(VK_MAKE_VERSION(1, 0, 0)) {}
+    : debug(false), trace(false), appName("untitled"), appVersion(1, 0, 0) {}
 };
 
 typedef ResourceHandle<Buffer> BufferHandle;
@@ -72,16 +68,22 @@ private:
     ResourceContainer<Buffer> buffers;
     // todo: ... other resource containers
 
-    vk::Instance                 instance;
-    vk::DebugReportCallbackEXT   debugCallback;
-    vk::PhysicalDevice           physicalDevice;
-    vk::PhysicalDeviceProperties deviceProperties;
-    vk::PhysicalDeviceFeatures   deviceFeatures;
-    vk::Device                   device;
-    vk::SurfaceKHR               surface;
+    vk::Instance                       instance;
+    vk::DebugReportCallbackEXT         debugCallback;
+    vk::PhysicalDevice                 physicalDevice;
+    vk::PhysicalDeviceProperties       deviceProperties;
+    vk::PhysicalDeviceFeatures         deviceFeatures;
+    vk::Device                         device;
+    vk::SurfaceKHR                     surface;
+    vk::PhysicalDeviceMemoryProperties memoryProperties;
 
     // These resources are cleaned out every frame.
     std::unordered_set<Resource> graveyard;
+
+    bool isSwapchainDirty;
+
+    unsigned long uboAlignment;
+    unsigned long ssboAlignment;
 
     struct ResourceDeleter final {
 
@@ -90,9 +92,11 @@ private:
         ResourceDeleter(Renderer *renderer) : renderer(renderer) {}
 
         ResourceDeleter(const ResourceDeleter &) = default;
-        ResourceDeleter(ResourceDeleter &&)      = default;
+
+        ResourceDeleter(ResourceDeleter &&) = default;
 
         ResourceDeleter &operator=(const ResourceDeleter &) = default;
+
         ResourceDeleter &operator=(ResourceDeleter &&) = default;
 
         ~ResourceDeleter() = default;
@@ -108,9 +112,11 @@ public:
     explicit Renderer(const RendererInfo &rendererInfo);
 
     Renderer(const Renderer &) = delete;
+
     Renderer &operator=(const Renderer &) = delete;
 
     Renderer(Renderer &&other) = default;
+
     Renderer &operator=(Renderer &&other) = default;
 
     ~Renderer();
