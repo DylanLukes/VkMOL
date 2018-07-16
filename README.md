@@ -40,11 +40,7 @@ shipped with some headers we need (such as `clipper/clipper*.h`).
 You must download and build CCP4 from source. Follow the instructions in the 
 `README`/`INSTALL` provided in the source tarball.
 
-Finally, set the environment variable `CCP4` to your `ccp4-dev` directory. 
-With a CCP4 distribution installed, this will trigger its `ccp4-config.cmake` to 
-load _your_ copy of CCP4. If you do not have a prebuilt distribution installed,
-you must ensure that you install CCP4 to a well-known location so that CMake
-can find it.
+Finally, set the environment variable `CCP4` to your `ccp4-dev` directory.
 
 ## Running Tests
 

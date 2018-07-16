@@ -35,8 +35,7 @@ namespace vkmol {
 namespace renderer {
 
 struct RendererWSIDelegate {
-    using InstanceExtensionsCallback =
-        std::function<std::vector<const char *>()>;
+    using InstanceExtensionsCallback = std::function<std::vector<const char *>()>;
 
     std::function<std::vector<const char *>()>  getInstanceExtensions;
     std::function<vk::SurfaceKHR(vk::Instance)> getSurface;
@@ -48,13 +47,15 @@ struct RendererInfo {
     bool debug;
     bool trace;
 
+    size_t ringBufferSize;
+
     std::string               appName;
     std::tuple<int, int, int> appVersion;
 
     RendererWSIDelegate delegate;
 
-    RendererInfo()
-    : debug(false), trace(false), appName("untitled"), appVersion(1, 0, 0) {}
+    // Note: 1GB for the ring buffer is *probably* overkill in general...
+    RendererInfo() : debug(false), trace(false), ringBufferSize(1048576), appName("untitled"), appVersion(1, 0, 0) {}
 };
 
 typedef ResourceHandle<Buffer> BufferHandle;
@@ -76,11 +77,44 @@ private:
     vk::Device                         device;
     vk::SurfaceKHR                     surface;
     vk::PhysicalDeviceMemoryProperties memoryProperties;
+    uint32_t                           graphicsQueueIndex;
+    uint32_t                           transferQueueIndex;
+
+    std::unordered_set<vk::Format>         surfaceFormats;
+    vk::SurfaceCapabilitiesKHR             surfaceCapabilities;
+    std::unordered_set<vk::PresentModeKHR> surfacePresentModes;
+    vk::SwapchainKHR                       swapchain;
+    // vk::PipelineCache                      pipelineCache;
+    vk::Queue graphicsQueue;
+    vk::Queue transferQueue;
+
+    vk::Semaphore acquireSemaphore;
+    vk::Semaphore finishedSemaphore;
+
+    VmaAllocator  allocator;
+    VmaAllocation ringBufferMemory;
+    vk::Buffer    ringBuffer;
+    size_t        ringBufferSize;
+    size_t        ringBufferHead;
+    uint8_t *     persistentMapping;
+
+    // Synchronized up to this ringbuffer index (bookkeeping).
+    uint32_t lastSyncedRingBufferIndex;
+
+    // The command pool for transfers is persistent, whereas we otherwise
+    // use a distinct ephemeral command pool per frame.
+    vk::CommandPool transferCommandPool;
+    //    std::vector<UploadOp> uploads;
+
+    bool debugMarkers;
 
     // These resources are cleaned out every frame.
     std::unordered_set<Resource> graveyard;
 
     bool isSwapchainDirty;
+
+    uint32_t currentFrame;
+    uint32_t lastSyncedFrame;
 
     unsigned long uboAlignment;
     unsigned long ssboAlignment;
@@ -104,6 +138,11 @@ private:
         void operator()(Buffer &b) const { renderer->deleteBufferInternal(b); }
     };
 
+    void recreateSwapchain();
+    void recreateRingBuffer(unsigned int newSize);
+
+    unsigned int ringBufferAllocate(unsigned int size, unsigned int alignPower);
+
     void deleteBufferInternal(Buffer &b);
 
 public:
@@ -123,8 +162,7 @@ public:
 
 #pragma mark - Resource Management
 
-    BufferHandle
-    createBuffer(BufferType type, uint32_t size, const void *contents);
+    BufferHandle createBuffer(BufferType type, uint32_t size, const void *contents);
 
     void deleteBuffer(BufferHandle handle);
 };

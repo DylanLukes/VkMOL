@@ -91,9 +91,7 @@ bool Buffer::operator==(const Buffer &other) const {
     return this->buffer == other.buffer;
 }
 
-size_t Buffer::getHash() const {
-    return std::hash<uint64_t>()(reinterpret_cast<uint64_t>(VkBuffer(buffer)));
-}
+size_t Buffer::getHash() const { return std::hash<uint64_t>()(reinterpret_cast<uint64_t>(VkBuffer(buffer))); }
 
 }; // namespace renderer
 }; // namespace vkmol
