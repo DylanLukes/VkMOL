@@ -33,19 +33,17 @@
 namespace vkmol {
 namespace renderer {
 
-enum class BufferType : uint8_t { Invalid, Vertex, Index, Uniform };
+enum class BufferType : uint8_t { Invalid, Vertex, Index, Uniform, Any };
 
 enum class BufferAllocationType : bool { Default = false, Ring = true };
 
 struct Buffer {
     BufferType           type;
     BufferAllocationType allocationType;
-
-    uint32_t size;
-    uint32_t offset;
-
-    vk::Buffer    buffer;
-    VmaAllocation memory;
+    uint32_t             size;
+    uint32_t             offset;
+    vk::Buffer           buffer;
+    VmaAllocation        memory;
 
     uint32_t lastUsedFrame;
 

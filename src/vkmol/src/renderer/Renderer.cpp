@@ -36,9 +36,16 @@ vk::BufferUsageFlags bufferTypeUsageFlags(BufferType type) {
     vk::BufferUsageFlags flags;
     switch (type) {
     case BufferType::Invalid: UNREACHABLE();
-    case BufferType::Vertex: flags |= vk::BufferUsageFlagBits::eVertexBuffer; break;
-    case BufferType::Index: flags |= vk::BufferUsageFlagBits::eIndexBuffer; break;
-    case BufferType::Uniform: flags |= vk::BufferUsageFlagBits::eUniformBuffer; break;
+    case BufferType::Vertex:
+        flags |= vk::BufferUsageFlagBits::eVertexBuffer;
+        break;
+    case BufferType::Index:
+        flags |= vk::BufferUsageFlagBits::eIndexBuffer;
+        break;
+    case BufferType::Uniform:
+        flags |= vk::BufferUsageFlagBits::eUniformBuffer;
+        break;
+    case BufferType::Any: UNREACHABLE();
     }
 
     return flags;
@@ -46,15 +53,11 @@ vk::BufferUsageFlags bufferTypeUsageFlags(BufferType type) {
 
 #pragma mark - Lifecycle
 
-Renderer::Renderer(const RendererInfo &rendererInfo)
-: isSwapchainDirty(true), currentFrame(0), lastSyncedFrame(0), uboAlignment(0), ssboAlignment(0) {
+Renderer::Renderer(const RendererInfo &rendererInfo) {
     auto [versionMajor, versionMinor, versionPatch] = rendererInfo.appVersion;
 
-    LOG_SCOPE_F(INFO,
-                "Initializing renderer for %s %d.%d.%d",
-                rendererInfo.appName.data(),
-                versionMajor,
-                versionMinor,
+    LOG_SCOPE_F(INFO, "Initializing renderer for %s %d.%d.%d",
+                rendererInfo.appName.data(), versionMajor, versionMinor,
                 versionPatch);
 
     bool enableValidation = rendererInfo.debug;
@@ -63,10 +66,11 @@ Renderer::Renderer(const RendererInfo &rendererInfo)
     delegate = rendererInfo.delegate;
 
     vk::ApplicationInfo appInfo;
-    appInfo.pApplicationName   = rendererInfo.appName.data();
-    appInfo.applicationVersion = VK_MAKE_VERSION(versionMajor, versionMinor, versionPatch);
-    appInfo.pEngineName        = "VkMOL";
-    appInfo.engineVersion      = VK_MAKE_VERSION(1, 0, 0);
+    appInfo.pApplicationName = rendererInfo.appName.data();
+    appInfo.applicationVersion =
+        VK_MAKE_VERSION(versionMajor, versionMinor, versionPatch);
+    appInfo.pEngineName   = "VkMOL";
+    appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
 
     vk::InstanceCreateInfo instanceCreateInfo;
     instanceCreateInfo.pApplicationInfo = &appInfo;
@@ -91,24 +95,29 @@ Renderer::Renderer(const RendererInfo &rendererInfo)
 
     if (enableValidation) {
         LOG_F(INFO, "Enabling validation layers...");
-        pfn_vkCreateDebugReportCallbackEXT = reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>(
-            instance.getProcAddr("vkCreateDebugReportCallbackEXT"));
-        pfn_vkDestroyDebugReportCallbackEXT = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(
-            instance.getProcAddr("vkDestroyDebugReportCallbackEXT"));
+        pfn_vkCreateDebugReportCallbackEXT =
+            reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>(
+                instance.getProcAddr("vkCreateDebugReportCallbackEXT"));
+        pfn_vkDestroyDebugReportCallbackEXT =
+            reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>(
+                instance.getProcAddr("vkDestroyDebugReportCallbackEXT"));
 
         vk::DebugReportCallbackCreateInfoEXT callbackInfo;
-        callbackInfo.flags       = vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning;
+        callbackInfo.flags = vk::DebugReportFlagBitsEXT::eError
+                             | vk::DebugReportFlagBitsEXT::eWarning;
         callbackInfo.pfnCallback = debugCallbackFunc;
-        debugCallback            = instance.createDebugReportCallbackEXT(callbackInfo);
+        debugCallback = instance.createDebugReportCallbackEXT(callbackInfo);
     }
 
     if (enableMarkers) {
         LOG_F(INFO, "Enabling debug markers...");
         pfn_vkDebugMarkerSetObjectNameEXT =
-            reinterpret_cast<PFN_vkDebugMarkerSetObjectNameEXT>(instance.getProcAddr("vkDebugMarkerSetObjectNameEXT"));
+            reinterpret_cast<PFN_vkDebugMarkerSetObjectNameEXT>(
+                instance.getProcAddr("vkDebugMarkerSetObjectNameEXT"));
     }
 
-    std::vector<vk::PhysicalDevice> physicalDevices = instance.enumeratePhysicalDevices();
+    std::vector<vk::PhysicalDevice> physicalDevices =
+        instance.enumeratePhysicalDevices();
 
     if (physicalDevices.empty()) {
         LOG_F(ERROR, "No physical Vulkan devices available.");
@@ -123,29 +132,30 @@ Renderer::Renderer(const RendererInfo &rendererInfo)
     deviceProperties = physicalDevice.getProperties();
     LOG_F(INFO, "Selecting device:");
 
-    LOG_F(INFO,
-          "\tDevice API version: %u.%u.%u",
+    LOG_F(INFO, "\tDevice API version: %u.%u.%u",
           VK_VERSION_MAJOR(deviceProperties.apiVersion),
           VK_VERSION_MINOR(deviceProperties.apiVersion),
           VK_VERSION_PATCH(deviceProperties.apiVersion));
 
-    LOG_F(INFO,
-          "\tDriver version: %u.%u.%u (%u) (%#08x)",
+    LOG_F(INFO, "\tDriver version: %u.%u.%u (%u) (%#08x)",
           VK_VERSION_MAJOR(deviceProperties.driverVersion),
           VK_VERSION_MINOR(deviceProperties.driverVersion),
           VK_VERSION_PATCH(deviceProperties.driverVersion),
-          deviceProperties.driverVersion,
-          deviceProperties.driverVersion);
+          deviceProperties.driverVersion, deviceProperties.driverVersion);
 
     LOG_F(INFO, "\tVendor ID: %x", deviceProperties.vendorID);
     LOG_F(INFO, "\tDevice ID: %x", deviceProperties.deviceID);
-    LOG_F(INFO, "\tType: %s", vk::to_string(deviceProperties.deviceType).c_str());
+    LOG_F(INFO, "\tType: %s",
+          vk::to_string(deviceProperties.deviceType).c_str());
     LOG_F(INFO, "\tName: \"%s\"", deviceProperties.deviceName);
 
     LOG_F(INFO, "\tLimits: ");
-    LOG_F(INFO, "\t\tUniform buffer alignment: %llu", deviceProperties.limits.minUniformBufferOffsetAlignment);
-    LOG_F(INFO, "\t\tStorage buffer alignment: %llu", deviceProperties.limits.minStorageBufferOffsetAlignment);
-    LOG_F(INFO, "\t\tTexel buffer alignment:   %llu", deviceProperties.limits.minTexelBufferOffsetAlignment);
+    LOG_F(INFO, "\t\tUniform buffer alignment: %llu",
+          deviceProperties.limits.minUniformBufferOffsetAlignment);
+    LOG_F(INFO, "\t\tStorage buffer alignment: %llu",
+          deviceProperties.limits.minStorageBufferOffsetAlignment);
+    LOG_F(INFO, "\t\tTexel buffer alignment:   %llu",
+          deviceProperties.limits.minTexelBufferOffsetAlignment);
 
     uboAlignment  = deviceProperties.limits.minUniformBufferOffsetAlignment;
     ssboAlignment = deviceProperties.limits.minStorageBufferOffsetAlignment;
@@ -159,28 +169,30 @@ Renderer::Renderer(const RendererInfo &rendererInfo)
 
     LOG_F(INFO, "\tTypes:");
     for (unsigned int i = 0; i < memoryProperties.memoryTypeCount; ++i) {
-        LOG_F(INFO,
-              "\t\t%u. Heap %u %s",
-              i,
+        LOG_F(INFO, "\t\t%u. Heap %u %s", i,
               memoryProperties.memoryTypes[i].heapIndex,
-              vk::to_string(memoryProperties.memoryTypes[i].propertyFlags).c_str());
+              vk::to_string(memoryProperties.memoryTypes[i].propertyFlags)
+                  .c_str());
     }
     LOG_F(INFO, "\tHeaps:");
     for (unsigned int i = 0; i < memoryProperties.memoryHeapCount; i++) {
-        std::string tempString = vk::to_string(memoryProperties.memoryHeaps[i].flags);
-        LOG_F(INFO, "\t\t%u. Size ~%lluGiB %s", i, memoryProperties.memoryHeaps[i].size >> 30, tempString.c_str());
+        std::string tempString =
+            vk::to_string(memoryProperties.memoryHeaps[i].flags);
+        LOG_F(INFO, "\t\t%u. Size ~%lluGiB %s", i,
+              memoryProperties.memoryHeaps[i].size >> 30, tempString.c_str());
     }
 
-    std::vector<vk::QueueFamilyProperties> queueProperties = physicalDevice.getQueueFamilyProperties();
+    std::vector<vk::QueueFamilyProperties> queueProperties =
+        physicalDevice.getQueueFamilyProperties();
     LOG_F(INFO, "Queue families: ");
     for (unsigned int i = 0; i < queueProperties.size(); ++i) {
         const auto &queue = queueProperties.at(i);
 
-        LOG_F(INFO, "\t%u. Flags: %s", i, vk::to_string(queue.queueFlags).c_str());
+        LOG_F(INFO, "\t%u. Flags: %s", i,
+              vk::to_string(queue.queueFlags).c_str());
         LOG_F(INFO, "\t   Count: %u", queue.queueCount);
         LOG_F(INFO, "\t   Timestamp valid bits: %u", queue.timestampValidBits);
-        LOG_F(INFO,
-              "\t   Image transfer granularity: (%u, %u, %u)",
+        LOG_F(INFO, "\t   Image transfer granularity: (%u, %u, %u)",
               queue.minImageTransferGranularity.width,
               queue.minImageTransferGranularity.height,
               queue.minImageTransferGranularity.depth);
@@ -205,23 +217,26 @@ Renderer::Renderer(const RendererInfo &rendererInfo)
     std::array<float, 1>                     queuePriorities = {{0.0f}};
     std::array<vk::DeviceQueueCreateInfo, 2> queueCreateInfos;
 
-    unsigned int queueCreateInfoCount = 0;
+    unsigned int queueCount = 0;
 
-    queueCreateInfos[queueCreateInfoCount].queueFamilyIndex = graphicsQueueIndex;
-    queueCreateInfos[queueCreateInfoCount].queueCount       = 1;
-    queueCreateInfos[queueCreateInfoCount].pQueuePriorities = &queuePriorities[0];
-    queueCreateInfoCount++;
+    queueCreateInfos[queueCount].queueFamilyIndex = graphicsQueueIndex;
+    queueCreateInfos[queueCount].queueCount       = 1;
+    queueCreateInfos[queueCount].pQueuePriorities = &queuePriorities[0];
+    queueCount++;
 
     transferQueueIndex = graphicsQueueIndex;
-    auto currentFlags  = std::bitset<32>(static_cast<uint32_t>(queueProperties[graphicsQueueIndex].queueFlags));
+    auto currentFlags  = std::bitset<32>(
+        static_cast<uint32_t>(queueProperties[graphicsQueueIndex].queueFlags));
     for (unsigned int i = 0; i < queueProperties.size(); ++i) {
         if (i == graphicsQueueIndex) continue;
 
         const auto &queue = queueProperties.at(i);
         if (!(queue.queueFlags & vk::QueueFlagBits::eTransfer)) continue;
 
-        // The best transfer queue is the one with the *least* other capabilities.
-        auto queueFlags = std::bitset<32>(static_cast<uint32_t>(queue.queueFlags));
+        // The best transfer queue is the one with the *least* other
+        // capabilities.
+        auto queueFlags =
+            std::bitset<32>(static_cast<uint32_t>(queue.queueFlags));
         if (currentFlags.count() < queueFlags.count()) {
             transferQueueIndex = i;
             currentFlags       = queueFlags;
@@ -230,25 +245,28 @@ Renderer::Renderer(const RendererInfo &rendererInfo)
 
     if (transferQueueIndex != graphicsQueueIndex) {
         LOG_F(INFO, "Using queue %u for transfer", transferQueueIndex);
-        queueCreateInfos[queueCreateInfoCount].queueFamilyIndex = transferQueueIndex;
-        queueCreateInfos[queueCreateInfoCount].queueCount       = 1;
-        queueCreateInfos[queueCreateInfoCount].pQueuePriorities = &queuePriorities[0];
-        queueCreateInfoCount++;
+        queueCreateInfos[queueCount].queueFamilyIndex = transferQueueIndex;
+        queueCreateInfos[queueCount].queueCount       = 1;
+        queueCreateInfos[queueCount].pQueuePriorities = &queuePriorities[0];
+        queueCount++;
     } else {
         LOG_F(INFO, "Sharing queue %u for transfer.", transferQueueIndex);
     }
 
     std::unordered_set<std::string> availableExtensions;
     LOG_F(INFO, "Available device extensions:");
-    for (const auto &ext : physicalDevice.enumerateDeviceExtensionProperties()) {
+    for (const auto &ext :
+         physicalDevice.enumerateDeviceExtensionProperties()) {
         LOG_F(INFO, "\t- %s v%d", ext.extensionName, ext.specVersion);
         availableExtensions.insert(ext.extensionName);
     }
 
     std::vector<const char *> deviceExtensions;
 
-    auto checkExtension = [&deviceExtensions, &availableExtensions](const char *ext) {
-        if (availableExtensions.find(std::string(ext)) != availableExtensions.end()) {
+    auto checkExtension = [&deviceExtensions,
+                           &availableExtensions](const char *ext) {
+        if (availableExtensions.find(std::string(ext))
+            != availableExtensions.end()) {
             LOG_F(INFO, "Activating optional device extension: %s", ext);
             deviceExtensions.push_back(ext);
             return true;
@@ -258,16 +276,20 @@ Renderer::Renderer(const RendererInfo &rendererInfo)
 
     deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
 
-    // This is an optimization for Vulkan Memory Allocator we use when available.
-    // See: http://www.asawicki.info/articles/VK_KHR_dedicated_allocation.php5
-    bool dedicatedAllocation = checkExtension(VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME) &&
-                               checkExtension(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
+    // This is an optimization for Vulkan Memory Allocator we use when
+    // available. See:
+    // http://www.asawicki.info/articles/VK_KHR_dedicated_allocation.php5
+    bool dedicatedAllocation =
+        checkExtension(VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME)
+        && checkExtension(VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME);
 
-    if (enableMarkers) { debugMarkers = checkExtension(VK_EXT_DEBUG_MARKER_EXTENSION_NAME); }
+    if (enableMarkers) {
+        debugMarkers = checkExtension(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
+    }
 
     vk::DeviceCreateInfo deviceCreateInfo;
-    assert(queueCreateInfoCount <= queueCreateInfos.size());
-    deviceCreateInfo.queueCreateInfoCount    = queueCreateInfoCount;
+    assert(queueCount <= queueCreateInfos.size());
+    deviceCreateInfo.queueCreateInfoCount    = queueCount;
     deviceCreateInfo.pQueueCreateInfos       = queueCreateInfos.data();
     deviceCreateInfo.pEnabledFeatures        = &deviceFeatures;
     deviceCreateInfo.enabledExtensionCount   = deviceExtensions.size();
@@ -292,7 +314,8 @@ Renderer::Renderer(const RendererInfo &rendererInfo)
     graphicsQueue = device.getQueue(graphicsQueueIndex, 0);
     transferQueue = device.getQueue(transferQueueIndex, 0);
 
-    auto surfacePresentModes_ = physicalDevice.getSurfacePresentModesKHR(surface);
+    auto surfacePresentModes_ =
+        physicalDevice.getSurfacePresentModesKHR(surface);
     surfacePresentModes.reserve(surfacePresentModes_.size());
 
     LOG_F(INFO, "Surface present modes:");
@@ -304,9 +327,7 @@ Renderer::Renderer(const RendererInfo &rendererInfo)
     LOG_F(INFO, "Surface formats:");
     auto surfaceFormats_ = physicalDevice.getSurfaceFormatsKHR(surface);
     for (const auto &surfaceFormat : surfaceFormats_) {
-        LOG_F(INFO,
-              "\t- %s %s",
-              vk::to_string(surfaceFormat.format).c_str(),
+        LOG_F(INFO, "\t- %s %s", vk::to_string(surfaceFormat.format).c_str(),
               vk::to_string(surfaceFormat.colorSpace).c_str());
 
         // TODO: Should fallback to unorm888? sRGB is better.
@@ -320,26 +341,26 @@ Renderer::Renderer(const RendererInfo &rendererInfo)
     recreateSwapchain();
     recreateRingBuffer(rendererInfo.ringBufferSize);
 
-    acquireSemaphore = device.createSemaphore(vk::SemaphoreCreateInfo());
+    acquireSemaphore  = device.createSemaphore(vk::SemaphoreCreateInfo());
     finishedSemaphore = device.createSemaphore(vk::SemaphoreCreateInfo());
 
     vk::CommandPoolCreateInfo poolInfo;
     poolInfo.queueFamilyIndex = transferQueueIndex;
-    transferCommandPool = device.createCommandPool(poolInfo);
+    transferCommandPool       = device.createCommandPool(poolInfo);
 
-// TODO: USE A PIPELINE CACHE!!! But this is trickier on mobile,
-// probably requires a delegate function to inform it where to look.
+    // TODO: USE A PIPELINE CACHE!!! But this is trickier on mobile,
+    // probably requires a delegate function to inform it where to look.
 
-//    vk::PipelineCacheCreateInfo cacheInfo;
-//    std::vector<char> cacheData;
-//    std::string plCacheFile =  spirvCacheDir + "pipeline.cache";
-//    if (!desc.skipShaderCache && fileExists(plCacheFile)) {
-//        cacheData                 = readFile(plCacheFile);
-//        cacheInfo.initialDataSize = cacheData.size();
-//        cacheInfo.pInitialData    = cacheData.data();
-//    }
-//
-//    pipelineCache = device.createPipelineCache(cacheInfo);
+    //    vk::PipelineCacheCreateInfo cacheInfo;
+    //    std::vector<char> cacheData;
+    //    std::string plCacheFile =  spirvCacheDir + "pipeline.cache";
+    //    if (!desc.skipShaderCache && fileExists(plCacheFile)) {
+    //        cacheData                 = readFile(plCacheFile);
+    //        cacheInfo.initialDataSize = cacheData.size();
+    //        cacheInfo.pInitialData    = cacheData.data();
+    //    }
+    //
+    //    pipelineCache = device.createPipelineCache(cacheInfo);
 }
 
 void Renderer::deleteBufferInternal(Buffer &b) {
@@ -350,21 +371,103 @@ void Renderer::deleteBufferInternal(Buffer &b) {
     vmaFreeMemory(this->allocator, b.memory);
     assert(b.type != BufferType::Invalid);
 
-    b.buffer          = vk::Buffer();
-    b.allocationType  = BufferAllocationType::Default;
-    b.memory          = 0;
-    b.size            = 0;
-    b.offset          = 0;
-    b.lastUsedFrame   = 0;
-    b.type            = BufferType::Invalid;
+    b.buffer         = vk::Buffer();
+    b.allocationType = BufferAllocationType::Default;
+    b.memory         = 0;
+    b.size           = 0;
+    b.offset         = 0;
+    b.lastUsedFrame  = 0;
+    b.type           = BufferType::Invalid;
 }
 
 void Renderer::recreateSwapchain() {
+    LOG_SCOPE_F(INFO, "Recreating swapchain");
 
+    assert(isSwapchainDirty);
+
+    surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR(surface);
 }
 
 void Renderer::recreateRingBuffer(unsigned int newSize) {
+    LOG_SCOPE_F(INFO, "Recreating main ring buffer");
 
+    assert(newSize > 0);
+
+    // Clear any existing buffer.
+    if (ringBuffer) {
+        assert(ringBufferSize > 0);
+        assert(!persistentMapping);
+
+        // To keep resource management consistent, we wrap up the details
+        // of our 'main' buffer in a Buffer object, and emplace it on the
+        // graveyard, clearing our Renderer's bookkeeping information.
+        Buffer buffer;
+
+        buffer.buffer = ringBuffer;
+        ringBuffer    = vk::Buffer();
+
+        buffer.allocationType = BufferAllocationType::Default;
+
+        buffer.memory     = ringBufferMemory;
+        ringBufferMemory  = nullptr;
+        persistentMapping = nullptr;
+
+        buffer.size    = ringBufferSize;
+        ringBufferSize = 0;
+
+        buffer.type      = BufferType::Any;
+        buffer.offset    = ringBufferOffset;
+        ringBufferOffset = 0;
+
+        buffer.lastUsedFrame = currentFrame;
+
+        graveyard.emplace(std::move(buffer));
+    }
+
+    assert(!ringBuffer);
+    assert(ringBufferSize == 0);
+    assert(ringBufferOffset == 0);
+    assert(!persistentMapping);
+    ringBufferSize = newSize;
+
+    vk::BufferCreateInfo bufferInfo;
+    bufferInfo.size  = newSize;
+    bufferInfo.usage = vk::BufferUsageFlagBits::eUniformBuffer
+                       | vk::BufferUsageFlagBits::eStorageBuffer
+                       | vk::BufferUsageFlagBits::eIndexBuffer
+                       | vk::BufferUsageFlagBits::eVertexBuffer
+                       | vk::BufferUsageFlagBits::eTransferSrc;
+    ringBuffer = device.createBuffer(bufferInfo);
+
+    assert(ringBufferMemory == nullptr);
+
+    VmaAllocationCreateInfo requestInfo = {};
+    requestInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT
+                        | VMA_ALLOCATION_CREATE_MAPPED_BIT
+                        | VMA_ALLOCATION_CREATE_USER_DATA_COPY_STRING_BIT;
+
+    requestInfo.usage     = VMA_MEMORY_USAGE_CPU_TO_GPU;
+    requestInfo.pUserData = const_cast<char *>("Ring Buffer");
+
+    VmaAllocationInfo allocationInfo = {};
+
+    auto result =
+        vmaAllocateMemoryForBuffer(allocator, ringBuffer, &requestInfo,
+                                   &ringBufferMemory, &allocationInfo);
+
+    if (result != VK_SUCCESS) {
+        LOG_F(ERROR, "vmaAllocateMemoryForBuffer failed: %s",
+              vk::to_string(vk::Result(result)).c_str());
+        throw std::runtime_error("vmaAllocateMemoryForBuffer failed");
+    }
+
+    LOG_F(INFO, "Ring Buffer Memory Type:   %u", allocationInfo.memoryType);
+    LOG_F(INFO, "Ring Buffer Memory Offset: %llu", allocationInfo.offset);
+    LOG_F(INFO, "Ring Buffer Memory Size:   %llu", allocationInfo.size);
+
+    assert(ringBufferMemory != nullptr);
+    assert(allocationInfo.offset == 0);
+    assert(allocationInfo.pMappedData != nullptr);
 }
 
 Renderer::~Renderer() {
@@ -378,12 +481,14 @@ Renderer::~Renderer() {
     acquireSemaphore = vk::Semaphore();
 
     vmaFreeMemory(allocator, ringBufferMemory);
-    ringBufferMemory = nullptr;
+    ringBufferMemory  = nullptr;
     persistentMapping = nullptr;
     device.destroyBuffer(ringBuffer);
     ringBuffer = vk::Buffer();
 
     // destroy swapchain
+    device.destroySwapchainKHR(swapchain);
+    swapchain = vk::SwapchainKHR();
 
     instance.destroySurfaceKHR(surface);
     surface = vk::SurfaceKHR();
@@ -391,18 +496,16 @@ Renderer::~Renderer() {
     vmaDestroyAllocator(allocator);
     allocator = VK_NULL_HANDLE;
 
-    // destroy command pool
-
-    if (debugCallback) {
-        instance.destroyDebugReportCallbackEXT(debugCallback);
-        debugCallback = vk::DebugReportCallbackEXT();
-    }
-
     device.destroyCommandPool(transferCommandPool);
     transferCommandPool = vk::CommandPool();
 
     device.destroy();
     device = vk::Device();
+
+    if (debugCallback) {
+        instance.destroyDebugReportCallbackEXT(debugCallback);
+        debugCallback = vk::DebugReportCallbackEXT();
+    }
 
     instance.destroy();
     instance = vk::Instance();
@@ -410,7 +513,8 @@ Renderer::~Renderer() {
 
 #pragma mark - Resource Management
 
-BufferHandle Renderer::createBuffer(BufferType type, uint32_t size, const void *contents) {
+BufferHandle
+Renderer::createBuffer(BufferType type, uint32_t size, const void *contents) {
     assert(type != BufferType::Invalid);
     assert(size != 0);
     assert(contents != nullptr);
@@ -430,7 +534,9 @@ BufferHandle Renderer::createBuffer(BufferType type, uint32_t size, const void *
 }
 
 void Renderer::deleteBuffer(BufferHandle handle) {
-    buffers.removeWith(std::move(handle), [this](Buffer &b) { this->graveyard.emplace(std::move(b)); });
+    buffers.removeWith(std::move(handle), [this](Buffer &b) {
+        this->graveyard.emplace(std::move(b));
+    });
 }
 
 }; // namespace renderer

@@ -44,18 +44,15 @@ struct RendererWSIDelegate {
 };
 
 struct RendererInfo {
-    bool debug;
-    bool trace;
+    bool debug = false;
+    bool trace = false;
 
-    size_t ringBufferSize;
+    size_t ringBufferSize = 1024;
 
-    std::string               appName;
-    std::tuple<int, int, int> appVersion;
+    std::string               appName = "Untitled App";
+    std::tuple<int, int, int> appVersion = {1, 0, 0};
 
     RendererWSIDelegate delegate;
-
-    // Note: 1GB for the ring buffer is *probably* overkill in general...
-    RendererInfo() : debug(false), trace(false), ringBufferSize(1048576), appName("untitled"), appVersion(1, 0, 0) {}
 };
 
 typedef ResourceHandle<Buffer> BufferHandle;
@@ -77,8 +74,8 @@ private:
     vk::Device                         device;
     vk::SurfaceKHR                     surface;
     vk::PhysicalDeviceMemoryProperties memoryProperties;
-    uint32_t                           graphicsQueueIndex;
-    uint32_t                           transferQueueIndex;
+    uint32_t                           graphicsQueueIndex = 0;
+    uint32_t                           transferQueueIndex = 0;
 
     std::unordered_set<vk::Format>         surfaceFormats;
     vk::SurfaceCapabilitiesKHR             surfaceCapabilities;
@@ -94,9 +91,9 @@ private:
     VmaAllocator  allocator;
     VmaAllocation ringBufferMemory;
     vk::Buffer    ringBuffer;
-    size_t        ringBufferSize;
-    size_t        ringBufferHead;
-    uint8_t *     persistentMapping;
+    size_t        ringBufferSize = 0;
+    size_t        ringBufferOffset = 0;
+    uint8_t *     persistentMapping = nullptr;
 
     // Synchronized up to this ringbuffer index (bookkeeping).
     uint32_t lastSyncedRingBufferIndex;
@@ -106,18 +103,18 @@ private:
     vk::CommandPool transferCommandPool;
     //    std::vector<UploadOp> uploads;
 
-    bool debugMarkers;
+    bool debugMarkers = false;
 
     // These resources are cleaned out every frame.
     std::unordered_set<Resource> graveyard;
 
-    bool isSwapchainDirty;
+    bool isSwapchainDirty = true;
 
-    uint32_t currentFrame;
-    uint32_t lastSyncedFrame;
+    uint32_t currentFrame = 0;
+    uint32_t lastSyncedFrame = 0;
 
-    unsigned long uboAlignment;
-    unsigned long ssboAlignment;
+    unsigned long uboAlignment = 0;
+    unsigned long ssboAlignment = 0;
 
     struct ResourceDeleter final {
 
