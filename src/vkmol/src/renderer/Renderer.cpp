@@ -468,6 +468,8 @@ void Renderer::recreateRingBuffer(unsigned int newSize) {
     assert(ringBufferMemory != nullptr);
     assert(allocationInfo.offset == 0);
     assert(allocationInfo.pMappedData != nullptr);
+
+
 }
 
 Renderer::~Renderer() {

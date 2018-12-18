@@ -1,5 +1,5 @@
 /*
-  Copyright 2018, Dylan Lukes
+  Copyright 2018, Dylan Lukes, University of Pittsburgh
 
   Permission is hereby granted, free of charge, to any person obtaining a copy
   of this software and associated documentation files (the "Software"), to deal
@@ -27,10 +27,10 @@ namespace vkmol {
 namespace renderer {
 
 struct SwapchainInfo {
-    unsigned int width, height;
-    unsigned int imageCount;
+    unsigned int width = 0, height = 0;
+    unsigned int imageCount = 3;
 
-    SwapchainInfo() : width(0), height(0), imageCount(3){};
+    SwapchainInfo() {};
 };
 
 }; // namespace renderer
