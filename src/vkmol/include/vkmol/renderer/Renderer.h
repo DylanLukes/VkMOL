@@ -25,6 +25,7 @@
 
 #include "Buffer.h"
 #include "Resource.h"
+#include "Swapchain.h"
 
 #include <functional>
 #include <unordered_set>
@@ -39,6 +40,22 @@ struct RendererWSIDelegate {
 
     std::function<std::vector<const char *>()>  getInstanceExtensions;
     std::function<vk::SurfaceKHR(vk::Instance)> getSurface;
+
+    /*
+     * A note on window vs framebuffer size:
+     *
+     * Window size: screen coordinates.
+     * Framebuffer size: pixels.
+     *
+     * These differ for hidpi/retina displays! Watch out!
+     *
+     * https://www.glfw.org/docs/latest/window_guide.html#window_size
+     * https://www.glfw.org/docs/latest/window_guide.html#window_fbsize
+     *
+     * We allow ints here as some window managers use them to indicate errors.
+     * Internally we use unsigned integers.
+     */
+
     std::function<std::tuple<int, int>()>       getWindowSize;
     std::function<std::tuple<int, int>()>       getFramebufferSize;
 };
@@ -47,11 +64,12 @@ struct RendererInfo {
     bool debug = false;
     bool trace = false;
 
-    size_t ringBufferSize = 1024;
+    size_t ringBufferSize = 1048576; // 1MiB
+
+    SwapchainInfo swapchainInfo;
 
     std::string               appName = "Untitled App";
     std::tuple<int, int, int> appVersion = {1, 0, 0};
-
     RendererWSIDelegate delegate;
 };
 
@@ -88,8 +106,8 @@ private:
     vk::Semaphore acquireSemaphore;
     vk::Semaphore finishedSemaphore;
 
-    VmaAllocator  allocator;
-    VmaAllocation ringBufferMemory;
+    VmaAllocator  allocator = nullptr;
+    VmaAllocation ringBufferMemory = nullptr;
     vk::Buffer    ringBuffer;
     size_t        ringBufferSize = 0;
     size_t        ringBufferOffset = 0;
@@ -108,7 +126,11 @@ private:
     // These resources are cleaned out every frame.
     std::unordered_set<Resource> graveyard;
 
+    SwapchainInfo swapchainInfo;
+    SwapchainInfo wantedSwapchainInfo;
     bool isSwapchainDirty = true;
+
+    std::tuple<unsigned int, unsigned int> framebufferSize;
 
     uint32_t currentFrame = 0;
     uint32_t lastSyncedFrame = 0;

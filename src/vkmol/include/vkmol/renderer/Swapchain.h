@@ -27,10 +27,12 @@ namespace vkmol {
 namespace renderer {
 
 struct SwapchainInfo {
-    unsigned int width = 0, height = 0;
+    unsigned int width      = 0;
+    unsigned int height     = 0;
     unsigned int imageCount = 3;
+    bool         fullscreen = false;
 
-    SwapchainInfo() {};
+    SwapchainInfo() = default;
 };
 
 }; // namespace renderer

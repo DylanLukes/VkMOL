@@ -1,12 +1,12 @@
 /*
   Copyright 2018, Dylan Lukes, University of Pittsburgh
 
-  Permission is hereby granted, free of charge, to any person obtaining a copy of
-  this software and associated documentation files (the "Software"), to deal in
-  the Software without restriction, including without limitation the rights to
-  use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-  of the Software, and to permit persons to whom the Software is furnished to do
-  so, subject to the following conditions:
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
 
   The above copyright notice and this permission notice shall be included in all
   copies or substantial portions of the Software.
@@ -25,7 +25,7 @@
 namespace vkmol {
 namespace renderer {
 
-Buffer::Buffer()
+Buffer::Buffer() noexcept
 : type(BufferType::Invalid)
 , allocationType(BufferAllocationType::Default)
 , size(0)
@@ -91,7 +91,9 @@ bool Buffer::operator==(const Buffer &other) const {
     return this->buffer == other.buffer;
 }
 
-size_t Buffer::getHash() const { return std::hash<uint64_t>()(reinterpret_cast<uint64_t>(VkBuffer(buffer))); }
+size_t Buffer::getHash() const {
+    return std::hash<uint64_t>()(reinterpret_cast<uint64_t>(VkBuffer(buffer)));
+}
 
 }; // namespace renderer
 }; // namespace vkmol

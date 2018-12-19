@@ -15,7 +15,7 @@ add_library(vkmol SHARED
     src/renderer/Debug.cpp
     src/renderer/Renderer.cpp
     src/renderer/Resource.cpp
-    src/renderer/Allocator.cpp)
+    src/renderer/Allocator.cpp include/vkmol/renderer/UploadOp.h src/renderer/UploadOp.cpp)
 
 target_include_directories(vkmol
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

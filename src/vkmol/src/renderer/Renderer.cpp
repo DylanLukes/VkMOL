@@ -32,6 +32,16 @@ namespace renderer {
 
 #pragma mark - Utilities
 
+std::string bufferTypeString(BufferType type) {
+    switch (type) {
+    case BufferType::Invalid: UNREACHABLE();
+    case BufferType::Vertex: return "vertex";
+    case BufferType::Index: return "index";
+    case BufferType::Uniform: return "uniform";
+    case BufferType::Any: return "any";
+    }
+}
+
 vk::BufferUsageFlags bufferTypeUsageFlags(BufferType type) {
     vk::BufferUsageFlags flags;
     switch (type) {
@@ -62,6 +72,8 @@ Renderer::Renderer(const RendererInfo &rendererInfo) {
 
     bool enableValidation = rendererInfo.debug;
     bool enableMarkers    = rendererInfo.trace;
+
+    swapchainInfo = wantedSwapchainInfo = rendererInfo.swapchainInfo;
 
     delegate = rendererInfo.delegate;
 
@@ -373,7 +385,7 @@ void Renderer::deleteBufferInternal(Buffer &b) {
 
     b.buffer         = vk::Buffer();
     b.allocationType = BufferAllocationType::Default;
-    b.memory         = 0;
+    b.memory         = nullptr;
     b.size           = 0;
     b.offset         = 0;
     b.lastUsedFrame  = 0;
@@ -386,6 +398,44 @@ void Renderer::recreateSwapchain() {
     assert(isSwapchainDirty);
 
     surfaceCapabilities = physicalDevice.getSurfaceCapabilitiesKHR(surface);
+    LOG_F(INFO, "Image Count: %u...%u", surfaceCapabilities.minImageCount,
+          surfaceCapabilities.maxImageCount);
+    LOG_F(INFO, "Image Extent: %ux%u...%ux%u",
+          surfaceCapabilities.minImageExtent.width,
+          surfaceCapabilities.minImageExtent.height,
+          surfaceCapabilities.maxImageExtent.width,
+          surfaceCapabilities.maxImageExtent.height);
+
+    LOG_F(INFO, "Current Image Extent %ux%u",
+          surfaceCapabilities.currentExtent.width,
+          surfaceCapabilities.currentExtent.height);
+    LOG_F(INFO, "Supported Surface Transforms: %s",
+          vk::to_string(surfaceCapabilities.supportedTransforms).c_str());
+    LOG_F(INFO, "Supported Surface Alpha Composite Flags: %s",
+          vk::to_string(surfaceCapabilities.supportedCompositeAlpha).c_str());
+    LOG_F(INFO, "Supported Surface Usage Flags: %s",
+          vk::to_string(surfaceCapabilities.supportedUsageFlags).c_str());
+
+    auto [tempW, tempH] = delegate.getFramebufferSize();
+
+    if (tempW <= 0 || tempH <= 0) {
+        // This really should not happen...
+        throw std::runtime_error(
+            "Delegate returned negative framebuffer size.");
+    }
+
+    // Some window managers will not actually return the resized
+    // dimensions yet, so we have to be ready to improvise.
+    unsigned int w =
+        std::max(surfaceCapabilities.minImageExtent.width,
+                 std::min(static_cast<unsigned int>(tempW),
+                          surfaceCapabilities.maxImageExtent.width));
+    unsigned int h =
+        std::max(surfaceCapabilities.minImageExtent.height,
+                 std::min(static_cast<unsigned int>(tempW),
+                          surfaceCapabilities.maxImageExtent.height));
+
+    framebufferSize = {w, h};
 }
 
 void Renderer::recreateRingBuffer(unsigned int newSize) {
@@ -469,12 +519,16 @@ void Renderer::recreateRingBuffer(unsigned int newSize) {
     assert(allocationInfo.offset == 0);
     assert(allocationInfo.pMappedData != nullptr);
 
+    device.bindBufferMemory(ringBuffer, allocationInfo.deviceMemory,
+                            allocationInfo.offset);
 
+    persistentMapping = reinterpret_cast<uint8_t *>(allocationInfo.pMappedData);
+    assert(persistentMapping != nullptr);
 }
 
 Renderer::~Renderer() {
 
-    // todo: could write out pipeline cache here (!)
+    // TODO: should write out pipeline cache here (!)
 
     device.destroySemaphore(finishedSemaphore);
     finishedSemaphore = vk::Semaphore();
@@ -496,7 +550,7 @@ Renderer::~Renderer() {
     surface = vk::SurfaceKHR();
 
     vmaDestroyAllocator(allocator);
-    allocator = VK_NULL_HANDLE;
+    allocator = nullptr;
 
     device.destroyCommandPool(transferCommandPool);
     transferCommandPool = vk::CommandPool();
@@ -517,6 +571,12 @@ Renderer::~Renderer() {
 
 BufferHandle
 Renderer::createBuffer(BufferType type, uint32_t size, const void *contents) {
+    // Note: this method looks a lot like the code to recreate our ringbuffer,
+    // but this is intended for public usage, e.g. for vertex and index buffers.
+    // Do not attempt to use this code to manage the ringbuffer.
+    LOG_SCOPE_F(INFO, "Creating a %s buffer of size %u",
+                bufferTypeString(type).c_str(), size);
+
     assert(type != BufferType::Invalid);
     assert(size != 0);
     assert(contents != nullptr);
@@ -528,9 +588,32 @@ Renderer::createBuffer(BufferType type, uint32_t size, const void *contents) {
     auto [buffer, bufferHandle] = buffers.add();
     buffer.buffer               = device.createBuffer(info);
 
-    VmaAllocationCreateInfo allocInfo;
+    // Note: you do need to initialize these with = {},
+    // as they are C structures and we want them zero-initialized.
+    VmaAllocationCreateInfo requestInfo = {};
+    requestInfo.usage                   = VMA_MEMORY_USAGE_GPU_ONLY;
+    VmaAllocationInfo allocationInfo    = {};
 
-    // todo ...
+    vmaAllocateMemoryForBuffer(allocator, buffer.buffer, &requestInfo,
+                               &buffer.memory, &allocationInfo);
+    LOG_F(INFO, "Buffer Memory Type: %u", allocationInfo.memoryType);
+    LOG_F(INFO, "Buffer Memory Offset: %u",
+          static_cast<unsigned int>(allocationInfo.offset));
+    LOG_F(INFO, "Buffer Memory Size: %u",
+          static_cast<unsigned int>(allocationInfo.size));
+
+    assert(allocationInfo.size > 0);
+    assert(allocationInfo.pMappedData == nullptr);
+
+    device.bindBufferMemory(buffer.buffer, allocationInfo.deviceMemory,
+                            allocationInfo.offset);
+
+    buffer.offset = static_cast<uint32_t>(allocationInfo.offset);
+    buffer.size = size;
+    buffer.type = type;
+
+    // Copy to GPU.
+    // TODO: HERE!
 
     return bufferHandle;
 }
