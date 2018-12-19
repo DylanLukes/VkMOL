@@ -26,6 +26,7 @@
 #include "Buffer.h"
 #include "Resource.h"
 #include "Swapchain.h"
+#include "UploadOp.h"
 
 #include <functional>
 #include <unordered_set>
@@ -36,7 +37,8 @@ namespace vkmol {
 namespace renderer {
 
 struct RendererWSIDelegate {
-    using InstanceExtensionsCallback = std::function<std::vector<const char *>()>;
+    using InstanceExtensionsCallback =
+        std::function<std::vector<const char *>()>;
 
     std::function<std::vector<const char *>()>  getInstanceExtensions;
     std::function<vk::SurfaceKHR(vk::Instance)> getSurface;
@@ -56,8 +58,8 @@ struct RendererWSIDelegate {
      * Internally we use unsigned integers.
      */
 
-    std::function<std::tuple<int, int>()>       getWindowSize;
-    std::function<std::tuple<int, int>()>       getFramebufferSize;
+    std::function<std::tuple<int, int>()> getWindowSize;
+    std::function<std::tuple<int, int>()> getFramebufferSize;
 };
 
 struct RendererInfo {
@@ -68,9 +70,9 @@ struct RendererInfo {
 
     SwapchainInfo swapchainInfo;
 
-    std::string               appName = "Untitled App";
+    std::string               appName    = "Untitled App";
     std::tuple<int, int, int> appVersion = {1, 0, 0};
-    RendererWSIDelegate delegate;
+    RendererWSIDelegate       delegate;
 };
 
 typedef ResourceHandle<Buffer> BufferHandle;
@@ -106,11 +108,11 @@ private:
     vk::Semaphore acquireSemaphore;
     vk::Semaphore finishedSemaphore;
 
-    VmaAllocator  allocator = nullptr;
+    VmaAllocator  allocator        = nullptr;
     VmaAllocation ringBufferMemory = nullptr;
     vk::Buffer    ringBuffer;
-    size_t        ringBufferSize = 0;
-    size_t        ringBufferOffset = 0;
+    size_t        ringBufferSize    = 0;
+    size_t        ringBufferOffset  = 0;
     uint8_t *     persistentMapping = nullptr;
 
     // Synchronized up to this ringbuffer index (bookkeeping).
@@ -128,14 +130,14 @@ private:
 
     SwapchainInfo swapchainInfo;
     SwapchainInfo wantedSwapchainInfo;
-    bool isSwapchainDirty = true;
+    bool          isSwapchainDirty = true;
 
     std::tuple<unsigned int, unsigned int> framebufferSize;
 
-    uint32_t currentFrame = 0;
+    uint32_t currentFrame    = 0;
     uint32_t lastSyncedFrame = 0;
 
-    unsigned long uboAlignment = 0;
+    unsigned long uboAlignment  = 0;
     unsigned long ssboAlignment = 0;
 
     struct ResourceDeleter final {
@@ -157,12 +159,23 @@ private:
         void operator()(Buffer &b) const { renderer->deleteBufferInternal(b); }
     };
 
-    void recreateSwapchain();
-    void recreateRingBuffer(unsigned int newSize);
-
+    void         recreateSwapchain();
+    void         recreateRingBuffer(unsigned int newSize);
     unsigned int ringBufferAllocate(unsigned int size, unsigned int alignPower);
 
+    UploadOp allocateUploadOp(uint32_t size);
+    void     submitUploadOp(UploadOp &&op);
+
     void deleteBufferInternal(Buffer &b);
+
+    // TODO: implement delete internals
+    //    void deleteFramebufferInternal(Framebuffer &fb);
+    //    void deleteRenderPassInternal(RenderPass &rp);
+    //    void deleteRenderTargetInternal(RenderTarget &rt);
+    //    void deleteResourceInternal(Resource &r);
+    //    void deleteSamplerInternal(Sampler &s);
+    //    void deleteTextureInternal(Texture &tex);
+    //    void deleteFrameInternal(Frame &f);
 
 public:
 #pragma mark - Lifecycle
@@ -181,9 +194,28 @@ public:
 
 #pragma mark - Resource Management
 
-    BufferHandle createBuffer(BufferType type, uint32_t size, const void *contents);
+    //    RenderTargetHandle   createRenderTarget(const RenderTargetDesc &desc);
+    //    VertexShaderHandle   createVertexShader(const std::string &name, const
+    //    ShaderMacros &macros); FragmentShaderHandle createFragmentShader(const
+    //    std::string &name, const ShaderMacros &macros); FramebufferHandle
+    //    createFramebuffer(const FramebufferDesc &desc); RenderPassHandle
+    //    createRenderPass(const RenderPassDesc &desc); PipelineHandle
+    //    createPipeline(const PipelineDesc &desc);
+    BufferHandle
+    createBuffer(BufferType type, uint32_t size, const void *contents);
+    //    BufferHandle         createEphemeralBuffer(BufferType type, uint32_t
+    //    size, const void *contents); SamplerHandle        createSampler(const
+    //    SamplerDesc &desc); TextureHandle        createTexture(const
+    //    TextureDesc &desc);
 
     void deleteBuffer(BufferHandle handle);
+//    void deleteFramebuffer(FramebufferHandle fbo);
+//    void deleteRenderPass(RenderPassHandle fbo);
+//    void deleteSampler(SamplerHandle handle);
+//    void deleteTexture(TextureHandle handle);
+//    void deleteRenderTarget(RenderTargetHandle &fbo);
+
+
 };
 
 }; // namespace renderer
